@@ -127,9 +127,6 @@ jobs:
           distribution: "adopt"
           java-version: "17"
 
-      - name: Install APT packages
-        run: sudo apt install -y unrar
-
       # 下载处理过的游戏文件
       - uses: actions/download-artifact@v4
         with:
