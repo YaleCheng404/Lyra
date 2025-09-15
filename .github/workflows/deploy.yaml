@@ -33,13 +33,7 @@ jobs:
         uses: robinraju/release-downloader@v1.12
         with:
           latest: true
-          fileName: "DoL-*-Lyra-*-besc-cheat-csd-*.zip"
-      - id: getRelease-polyfill
-        name: release-downloader
-        uses: robinraju/release-downloader@v1.12
-        with:
-          latest: true
-          fileName: "DoL-*-Lyra-*-polyfill-besc-cheat-csd-*.zip"
+          fileName: "DoL-*-Lyra-*-besc-cheat-csd-ucb-*.zip"
 
       - name: Extract downloaded file
         run: |
@@ -47,36 +41,51 @@ jobs:
           unzip -q ${{ fromJson(steps.getRelease.outputs.downloaded_files)[0] }} -d ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
           mv "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/Degrees of Lewdity.html" "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/dol.html"
 
-          echo "Downloaded DoL Polyfill: ${{ steps.getRelease-polyfill.outputs.tag_name }}"
-          # unzip with overwrite
-          unzip -qo ${{ fromJson(steps.getRelease-polyfill.outputs.downloaded_files)[0] }} -d ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
-          mv "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/Degrees of Lewdity.html" "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/dol-polyfill.html"
-
       - name: Construct PWA
         run: |
           cp -r .github/pwa/* ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
+      - name: Simplify PWA index (remove polyfill option)
+        shell: python3 {0}
+        run: |
+          import io
+          import os
+          p = os.path.join("${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}", "index.html")
+          with io.open(p, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+          out = []
+          skip = False
+          for line in lines:
+            if 'class="button-polyfill"' in line:
+              skip = True
+              continue
+            if skip:
+              # stop skipping at the first closing div following the polyfill button
+              if '</div>' in line:
+                skip = False
+              continue
+            out.append(line)
+          with io.open(p, "w", encoding="utf-8") as f:
+            f.writelines(out)
       - name: Modify HTML
         shell: python3 {0}
         run: |
-          for html_name, manifest_name in zip(
-            ["${{ env.MODLOADER_HTML_NORMAL_FILENAME }}", "${{ env.MODLOADER_HTML_POLYFILL_FILENAME }}"],
-            ["${{ env.MANIFEST_JSON_NORMAL_FILENAME }}", "${{ env.MANIFEST_JSON_POLYFILL_FILENAME }}"]
-          ):
-            with open(f"${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/{html_name}", "r+", encoding="utf-8") as index_html_file:
-              index_html = index_html_file.read()
-              insert_index = index_html.find('<meta charset="UTF-8" />')
-              index_html = index_html[:insert_index] + \
-                  f"<link rel=\"manifest\" href=\"{manifest_name}\">\n" + index_html[insert_index:]
-              insert_index = index_html.find('<body>\n\t<div id="init-screen">') + 7
-              index_html = index_html[:insert_index] + \
-                  "    <script>\n" + \
-                  "        if (typeof navigator.serviceWorker !== 'undefined') {\n" + \
-                  "            navigator.serviceWorker.register('sw.js')\n" + \
-                  "        }\n" + \
-                  "    </script>\n" + index_html[insert_index:]
-              index_html_file.seek(0)
-              index_html_file.truncate()
-              index_html_file.write(index_html)
+          html_name = "${{ env.MODLOADER_HTML_NORMAL_FILENAME }}"
+          manifest_name = "${{ env.MANIFEST_JSON_NORMAL_FILENAME }}"
+          with open(f"${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/{html_name}", "r+", encoding="utf-8") as index_html_file:
+            index_html = index_html_file.read()
+            insert_index = index_html.find('<meta charset="UTF-8" />')
+            index_html = index_html[:insert_index] + \
+                f"<link rel=\"manifest\" href=\"{manifest_name}\">\n" + index_html[insert_index:]
+            insert_index = index_html.find('<body>\n\t<div id="init-screen">') + 7
+            index_html = index_html[:insert_index] + \
+                "    <script>\n" + \
+                "        if (typeof navigator.serviceWorker !== 'undefined') {\n" + \
+                "            navigator.serviceWorker.register('sw.js')\n" + \
+                "        }\n" + \
+                "    </script>\n" + index_html[insert_index:]
+            index_html_file.seek(0)
+            index_html_file.truncate()
+            index_html_file.write(index_html)
 
       - name: Pack Artifact
         run: |
@@ -109,16 +118,16 @@ jobs:
         run: |
           import json
             
-          for manifest_name in ["${{ env.MANIFEST_JSON_NORMAL_FILENAME }}", "${{ env.MANIFEST_JSON_POLYFILL_FILENAME }}"]:
-            with open(f"${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/{manifest_name}", "r+", encoding="utf-8") as manifest_file:
-              manifest_json = json.loads(manifest_file.read())
-              manifest_json["scope"] = "/${{ github.event.repository.name }}/"
-              manifest_json["start_url"] = "/${{ github.event.repository.name }}/"
-              manifest_json["shortcuts"][0]["url"] = "/${{ github.event.repository.name }}/"
-              manifest_json["icons"][0]["src"] = "/${{ github.event.repository.name }}/icon.png"
-              manifest_file.seek(0)
-              manifest_file.truncate()
-              manifest_file.write(json.dumps(manifest_json, indent=2))
+          manifest_name = "${{ env.MANIFEST_JSON_NORMAL_FILENAME }}"
+          with open(f"${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/{manifest_name}", "r+", encoding="utf-8") as manifest_file:
+            manifest_json = json.loads(manifest_file.read())
+            manifest_json["scope"] = "/${{ github.event.repository.name }}/"
+            manifest_json["start_url"] = "/${{ github.event.repository.name }}/"
+            manifest_json["shortcuts"][0]["url"] = "/${{ github.event.repository.name }}/"
+            manifest_json["icons"][0]["src"] = "/${{ github.event.repository.name }}/icon.png"
+            manifest_file.seek(0)
+            manifest_file.truncate()
+            manifest_file.write(json.dumps(manifest_json, indent=2))
 
       - name: Deploy to organization repo
         uses: crazy-max/ghaction-github-pages@v4
