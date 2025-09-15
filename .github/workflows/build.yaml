@@ -134,9 +134,21 @@ jobs:
           path: ${{ github.workspace }}
 
       - name: Run mod script
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: |
-          echo ${{ secrets.SIGNING_KEY }} > dol.base64
-          base64 -d dol.base64 > dol.jks
+          set -euo pipefail
+          if [ -n "${SIGNING_KEY:-}" ]; then
+            if printf '%s' "$SIGNING_KEY" | base64 -d > dol.jks 2>/dev/null; then
+              echo "Decoded signing keystore from secret"
+            else
+              echo "SIGNING_KEY is invalid base64; generating temporary debug keystore"
+              keytool -genkeypair -alias dol -keystore dol.jks -storepass dolchs -keypass dolchs -keyalg RSA -keysize 2048 -validity 36500 -dname "CN=DoL Lyra, OU=CI, O=Lyra, L=Internet, S=NA, C=US"
+            fi
+          else
+            echo "SIGNING_KEY not set; generating temporary debug keystore"
+            keytool -genkeypair -alias dol -keystore dol.jks -storepass dolchs -keypass dolchs -keyalg RSA -keysize 2048 -validity 36500 -dname "CN=DoL Lyra, OU=CI, O=Lyra, L=Internet, S=NA, C=US"
+          fi
           ./mod.sh ${{ matrix.pack }} ${{ matrix.code }} ${{ github.ref_name }}
 
       - name: Upload artifacts
