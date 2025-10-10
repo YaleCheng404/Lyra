@@ -118,7 +118,7 @@ jobs:
       matrix:
         pack: [zip, apk]
         # Only build the besc+cheat+csd+ucb variant
-        code: [263]
+        code: [263, 295, 1030, polyfill-263, polyfill-295, polyfill-1030]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
