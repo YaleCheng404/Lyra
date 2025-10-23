@@ -1,6 +1,11 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <zip|apk> <mod_code> [MMDD|v-YYYY-MM-DD]" >&2
+  exit 1
+fi
 
 #[
 #     "AU-M",   2048
@@ -22,14 +27,21 @@ VERSION=$1
 # 参数2 MOD代码
 MOD_CODE=$2
 # 参数3 可选，格式为月日，如 1231
-DATE_PARAM=$3
+DATE_PARAM=${3:-}
+if [[ "$VERSION" != "zip" && "$VERSION" != "apk" ]]; then
+  echo "Error: VERSION must be either 'zip' or 'apk'." >&2
+  exit 1
+fi
+if ! [[ $MOD_CODE =~ ^[0-9]+$ ]]; then
+  echo "Error: MOD_CODE must be numeric (e.g. 6)." >&2
+  exit 1
+fi
+MOD_CODE=$((10#$MOD_CODE))
 if [[ $DATE_PARAM == v* ]]; then
   DATE_NOW=$(echo $DATE_PARAM | awk -F- '{print $NF}')
 else
   DATE_NOW=$(date -d "+8 hours" +%m%d)
 fi
-
-IS_POLYFILL=0
 
 # 资源地址
 # 工具
@@ -48,45 +60,34 @@ URL_AU_M="https://github.com/DoL-Lyra/assets/releases/download/assets/AUmale.img
 EXTRACT_DIR=extract # 解压目录
 OUTPUT_DIR=output   # 输出目录
 PAIRS_DIR=pairs     # 索引输出目录
-if [ ! -d $OUTPUT_DIR ]; then
-  mkdir $OUTPUT_DIR
-fi
-if [ ! -d $PAIRS_DIR ]; then
-  mkdir $PAIRS_DIR
-fi
+mkdir -p "$OUTPUT_DIR"
+mkdir -p "$PAIRS_DIR"
 
 fun_name() {
   OUTPUT_PREFIX='' # 文件名前缀
   OUTPUT_SUFFIX='' # 文件名后缀
   BASE_NAME=${FILE_NAME%.*}
-  DOL_VER=$(echo $BASE_NAME | cut -d '-' -f 3)
-  CHS_VER=$(echo $BASE_NAME | cut -d '-' -f 4)
+  DOL_VER=$(echo "$BASE_NAME" | cut -d '-' -f 3)
+  CHS_VER=$(echo "$BASE_NAME" | cut -d '-' -f 4)
   OUTPUT_PREFIX="DoL-${DOL_VER}-Lyra-${CHS_VER}"
-  if [ $IS_POLYFILL -ne 0 ]; then
-    OUTPUT_PREFIX=${OUTPUT_PREFIX}"-polyfill"
-  fi
 }
 
 fun_gen_pairs() {
-  if [ $IS_POLYFILL -eq 0 ]; then
-    echo "$OUTPUT_NAME" >$PAIRS_DIR/${VERSION}_${MOD_CODE}
-  else
-    echo "$OUTPUT_NAME" >$PAIRS_DIR/${VERSION}_polyfill_${MOD_CODE}
-  fi
+  echo "$OUTPUT_NAME" >"$PAIRS_DIR/${VERSION}_${MOD_CODE}"
 }
 
 # ZIP
 fun_zip() {
-  unzip -q ${FILE_NAME} -d $EXTRACT_DIR
+  unzip -q "$FILE_NAME" -d "$EXTRACT_DIR"
 
   fun_check_code
 
   OUTPUT_NAME="${OUTPUT_PREFIX}${OUTPUT_SUFFIX}-${DATE_NOW}.zip"
-  echo $OUTPUT_NAME
+  echo "$OUTPUT_NAME"
 
-  pushd $EXTRACT_DIR || exit
+  pushd "$EXTRACT_DIR" || exit
   zip -q -r dol.zip *
-  mv dol.zip ../$OUTPUT_DIR/$OUTPUT_NAME
+  mv dol.zip "../$OUTPUT_DIR/$OUTPUT_NAME"
   popd || exit
 
   # for generate markdown table
@@ -95,32 +96,32 @@ fun_zip() {
 
 # APK
 fun_apk() {
-  wget -q -nc -O apktool.jar $URL_APKTOOL
-  wget -q -nc -O uber-apk-signer.jar $URL_APKSIGN
+  wget -q -nc -O apktool.jar "$URL_APKTOOL"
+  wget -q -nc -O uber-apk-signer.jar "$URL_APKSIGN"
 
-  java -jar apktool.jar d $FILE_NAME -o $EXTRACT_DIR
+  java -jar apktool.jar d "$FILE_NAME" -o "$EXTRACT_DIR"
 
   # 修改包名
-  sed -i 's/"com.vrelnir.dol"/"com.vrelnir.dol.lyra"/g' $EXTRACT_DIR/AndroidManifest.xml
-  sed -i 's/"com.vrelnir.dol_debug"/"com.vrelnir.dol.lyra"/g' $EXTRACT_DIR/AndroidManifest.xml
+  sed -i 's/"com.vrelnir.dol"/"com.vrelnir.dol.lyra"/g' "$EXTRACT_DIR/AndroidManifest.xml"
+  sed -i 's/"com.vrelnir.dol_debug"/"com.vrelnir.dol.lyra"/g' "$EXTRACT_DIR/AndroidManifest.xml"
 
   # 修改 provider
-  sed -i 's/"com.vrelnir.dol.androidx-startup"/"com.vrelnir.dol.lyra.androidx-startup"/g' $EXTRACT_DIR/AndroidManifest.xml
-  sed -i 's/"com.vrelnir.dol_debug.androidx-startup"/"com.vrelnir.dol.lyra.androidx-startup"/g' $EXTRACT_DIR/AndroidManifest.xml
+  sed -i 's/"com.vrelnir.dol.androidx-startup"/"com.vrelnir.dol.lyra.androidx-startup"/g' "$EXTRACT_DIR/AndroidManifest.xml"
+  sed -i 's/"com.vrelnir.dol_debug.androidx-startup"/"com.vrelnir.dol.lyra.androidx-startup"/g' "$EXTRACT_DIR/AndroidManifest.xml"
 
   # 修改应用名
-  sed -i 's/DoL/DoL Lyra/g' $EXTRACT_DIR/res/values/strings.xml
-  sed -i 's/Degrees of Lewdity/DoL Lyra/g' $EXTRACT_DIR/res/values/strings.xml
+  sed -i 's/DoL/DoL Lyra/g' "$EXTRACT_DIR/res/values/strings.xml"
+  sed -i 's/Degrees of Lewdity/DoL Lyra/g' "$EXTRACT_DIR/res/values/strings.xml"
 
   fun_check_code
 
-  java -jar apktool.jar b $EXTRACT_DIR -o tmp.apk
+  java -jar apktool.jar b "$EXTRACT_DIR" -o tmp.apk
   java -jar uber-apk-signer.jar -a tmp.apk --ks dol.jks --ksAlias dol --ksKeyPass dolchs --ksPass dolchs -o signed
 
   OUTPUT_NAME="${OUTPUT_PREFIX}${OUTPUT_SUFFIX}-${DATE_NOW}.apk"
-  echo $OUTPUT_NAME
+  echo "$OUTPUT_NAME"
 
-  mv signed/*.apk $OUTPUT_DIR/$OUTPUT_NAME
+  mv signed/*.apk "$OUTPUT_DIR/$OUTPUT_NAME"
 
   # for generate markdown table
   fun_gen_pairs
@@ -128,72 +129,72 @@ fun_apk() {
 
 # 处理MOD代码
 fun_check_code() {
-  if [ $((MOD_CODE & 1)) -ne 0 ]; then
+  if (( MOD_CODE & 1 )); then
     echo 1-Start patch besc...
     fun_besc
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-besc
     echo 1-Complete patch besc!
   fi
-  # if [ $((MOD_CODE & 64)) -ne 0 ]; then
+  # if (( MOD_CODE & 64 )); then
   #   echo 64-Start patch wax...
   #   fun_wax
   #   OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-wax
   #   echo 64-Complete patch wax!
   # fi
-  if [ $((MOD_CODE & 128)) -ne 0 ]; then
+  if (( MOD_CODE & 128 )); then
     echo 128-Start patch susato...
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-susato
     echo 128-Complete patch susato!
   fi
-  if [ $((MOD_CODE & 2)) -ne 0 ]; then
+  if (( MOD_CODE & 2 )); then
     echo 2-Start patch cheat...
     # fun_cheat
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-cheat
     echo 2-Complete patch cheat!
   fi
-  if [ $((MOD_CODE & 4)) -ne 0 ]; then
+  if (( MOD_CODE & 4 )); then
     echo 4-Start patch CSD...
     # fun_csd
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-csd
     echo 4-Complete patch CSD!
   fi
-  if [ $((MOD_CODE & 8)) -ne 0 ]; then
+  if (( MOD_CODE & 8 )); then
     echo 8-Start patch sideview type BJ...
     fun_sideview_bj
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-sideviewbj
     echo 8-Complete patch sideview type BJ!
   fi
-  if [ $((MOD_CODE & 16)) -ne 0 ]; then
+  if (( MOD_CODE & 16 )); then
     echo 16-Start patch sideview type kr...
     fun_sideview_kr
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-sideviewkr
     echo 16-Complete patch sideview type kr!
   fi
-  if [ $((MOD_CODE & 32)) -ne 0 ]; then
+  if (( MOD_CODE & 32 )); then
     echo 32-Start patch sideview type hikari...
     fun_sideview_hikari
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-hikari
     echo 32-Complete patch sideview type hikari!
   fi
-  if [ $((MOD_CODE & 512)) -ne 0 ]; then
+  if (( MOD_CODE & 512 )); then
     echo 512-Start patch sideview type goose...
     fun_sideview_goose
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-goose
     echo 512-Complete patch sideview type goose!
   fi
-  if [ $((MOD_CODE & 1024)) -ne 0 ]; then
+  if (( MOD_CODE & 1024 )); then
     echo 1024-Start patch sideview type AU-F...
     fun_sideview_au_f
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-au-f
     echo 1024-Complete patch sideview type AU-F!
   fi
-  if [ $((MOD_CODE & 2048)) -ne 0 ]; then
+  if (( MOD_CODE & 2048 )); then
     echo 2048-Start patch sideview type AU-M...
     fun_sideview_au_m
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-au-m
     echo 2048-Complete patch sideview type AU-M!
   fi
-  if [ $((MOD_CODE & 256)) -ne 0 ]; then
+  if (( MOD_CODE & 256 )); then
     echo 256-Start patch Universal Combat Beautification...
     fun_ucb
     OUTPUT_SUFFIX=${OUTPUT_SUFFIX}-ucb
@@ -239,8 +240,8 @@ fun_besc() {
   IMGS=("$IMG_DOLP" "$IMG_B3S" "$IMG_KAE" "$IMG_DOLPB3S")
 
   BEAUTIFY_DIR="besc"
-  mkdir -p $BEAUTIFY_DIR/img
-  pushd $BEAUTIFY_DIR || exit
+  mkdir -p "$BEAUTIFY_DIR/img"
+  pushd "$BEAUTIFY_DIR" || exit
   for URL in "${IMGS[@]}"; do
 
     wget -q -O dolp-tmp.tar.gz "$URL"
@@ -255,7 +256,7 @@ fun_besc() {
   rm -rf "$BEAUTIFY_DIR/img/hair/fringe/Messy curls"
   mv "$BEAUTIFY_DIR/img/hair/sides/messy ponytail/Shoulder.png" "$BEAUTIFY_DIR/img/hair/sides/messy ponytail/shoulder.png" || true
 
-  cp -r $BEAUTIFY_DIR/img/* $IMG_PATH/
+  cp -r "$BEAUTIFY_DIR"/img/* "$IMG_PATH"/
 }
 # fun_wax() {
 #   BEAUTIFY_DIR="beautify"
@@ -291,8 +292,8 @@ fun_sideview_hikari() {
   IMGS=("$IMG_HIK" "$IMG_HIKS")
 
   BEAUTIFY_DIR="sideview_hikari"
-  mkdir -p $BEAUTIFY_DIR/img
-  pushd $BEAUTIFY_DIR || exit
+  mkdir -p "$BEAUTIFY_DIR/img"
+  pushd "$BEAUTIFY_DIR" || exit
   for URL in "${IMGS[@]}"; do
 
     wget -q -O dolp-tmp.tar.gz "$URL"
@@ -306,7 +307,7 @@ fun_sideview_hikari() {
   rm -f -r "$BEAUTIFY_DIR/img/hair/fringe/Messy curls"
   rm -f "$BEAUTIFY_DIR/img/clothes/face/foxmask/Full.png"
 
-  cp -r $BEAUTIFY_DIR/img/* $IMG_PATH/
+  cp -r "$BEAUTIFY_DIR"/img/* "$IMG_PATH"/
 }
 
 # Goose 特写
@@ -317,8 +318,8 @@ fun_sideview_goose() {
   IMGS=("$IMG_DOLP" "$IMG_GOOSE" "$IMG_GOOSES")
 
   BEAUTIFY_DIR="sideview_goose"
-  mkdir -p $BEAUTIFY_DIR/img
-  pushd $BEAUTIFY_DIR || exit
+  mkdir -p "$BEAUTIFY_DIR/img"
+  pushd "$BEAUTIFY_DIR" || exit
   for URL in "${IMGS[@]}"; do
 
     wget -q -O dolp-tmp.tar.gz "$URL"
@@ -328,15 +329,15 @@ fun_sideview_goose() {
   done
   popd || exit
 
-  cp -r $BEAUTIFY_DIR/img/* $IMG_PATH/
+  cp -r "$BEAUTIFY_DIR"/img/* "$IMG_PATH"/
 }
 
 # AU 特写
 fun_sideview_au_f() {
   BEAUTIFY_DIR="sideview_au_f"
-  mkdir -p $BEAUTIFY_DIR
+  mkdir -p "$BEAUTIFY_DIR"
 
-  pushd $BEAUTIFY_DIR || exit
+  pushd "$BEAUTIFY_DIR" || exit
 
   wget -q -O au.zip "$URL_AU_F"
   unzip -q au.zip
@@ -344,13 +345,13 @@ fun_sideview_au_f() {
 
   popd || exit
 
-  cp -r $BEAUTIFY_DIR/* $IMG_PATH/
+  cp -r "$BEAUTIFY_DIR"/* "$IMG_PATH"/
 }
 fun_sideview_au_m() {
   BEAUTIFY_DIR="sideview_au_m"
-  mkdir -p $BEAUTIFY_DIR
+  mkdir -p "$BEAUTIFY_DIR"
 
-  pushd $BEAUTIFY_DIR || exit
+  pushd "$BEAUTIFY_DIR" || exit
 
   wget -q -O au.zip "$URL_AU_M"
   unzip -q au.zip
@@ -358,7 +359,7 @@ fun_sideview_au_m() {
 
   popd || exit
 
-  cp -r $BEAUTIFY_DIR/* $IMG_PATH/
+  cp -r "$BEAUTIFY_DIR"/* "$IMG_PATH"/
 }
 
 # UCB
@@ -372,8 +373,8 @@ fun_ucb() {
   IMGS=("$IMG_UCB")
 
   BEAUTIFY_DIR="ucb"
-  mkdir -p $BEAUTIFY_DIR/img
-  pushd $BEAUTIFY_DIR || exit
+  mkdir -p "$BEAUTIFY_DIR/img"
+  pushd "$BEAUTIFY_DIR" || exit
   for URL in "${IMGS[@]}"; do
 
     wget -q -O dolp-tmp.tar.gz "$URL"
@@ -387,33 +388,28 @@ fun_ucb() {
   rm -f "$BEAUTIFY_DIR/img/sex/missionary/active/virginkiller/chest.png"
   rm -f "$BEAUTIFY_DIR/img/sex/missionary/active/virginkiller/waist.png"
 
-  cp -r $BEAUTIFY_DIR/img/* $IMG_PATH/
+  cp -r "$BEAUTIFY_DIR"/img/* "$IMG_PATH"/
 }
 
 # 入口
-if [[ ${MOD_CODE} = polyfill-* ]]; then
-  echo polyfill-6-Use cheat csd base
-  FILE_NAME=$(basename DoL*polyfill-6.$VERSION)
-  IS_POLYFILL=1
-  MOD_CODE=$(echo $MOD_CODE | cut -d '-' -f 2)
-elif [ $MOD_CODE -eq 134 ]; then
+if [[ "$MOD_CODE" -eq 134 ]]; then
   echo 134-Use susato cheat csd
-  FILE_NAME=$(basename DoL*-134.$VERSION)
-elif [ $MOD_CODE -eq 132 ]; then
+  FILE_NAME=$(basename DoL*-134."$VERSION")
+elif [[ "$MOD_CODE" -eq 132 ]]; then
   echo 132-Use susato csd
-  FILE_NAME=$(basename DoL*-132.$VERSION)
-elif [ $((MOD_CODE & 6)) -eq 6 ]; then
+  FILE_NAME=$(basename DoL*-132."$VERSION")
+elif (( (MOD_CODE & 6) == 6 )); then
   echo 6-Use cheat csd base
-  FILE_NAME=$(basename DoL*[^polyfill]-6.$VERSION)
-elif [ $((MOD_CODE & 4)) -eq 4 ]; then
+  FILE_NAME=$(basename DoL*-6."$VERSION")
+elif (( (MOD_CODE & 4) == 4 )); then
   echo 4-Use csd base
-  FILE_NAME=$(basename DoL*-4.$VERSION)
-elif [ $((MOD_CODE & 2)) -eq 2 ]; then
+  FILE_NAME=$(basename DoL*-4."$VERSION")
+elif (( (MOD_CODE & 2) == 2 )); then
   echo 2-Use cheat base
-  FILE_NAME=$(basename DoL*-2.$VERSION)
+  FILE_NAME=$(basename DoL*-2."$VERSION")
 else
   echo 0-Use i18n only
-  FILE_NAME=$(basename DoL*-0.$VERSION)
+  FILE_NAME=$(basename DoL*-0."$VERSION")
 fi
 
 case "$VERSION" in

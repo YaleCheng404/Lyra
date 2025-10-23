@@ -10,10 +10,7 @@ env:
   DOWNLOAD_RELEASE_TEMP_PATH: ${{ github.workspace }}/modloader-temp
 
   MODLOADER_HTML_NORMAL_FILENAME: "dol.html"
-  MODLOADER_HTML_POLYFILL_FILENAME: "dol-polyfill.html"
-
   MANIFEST_JSON_NORMAL_FILENAME: "manifest-normal.json"
-  MANIFEST_JSON_POLYFILL_FILENAME: "manifest-polyfill.json"
 
   UPLOAD_ARTIFACT_NAME: "ModLoader-Artifact"
   UPLOAD_ARTIFACT_FILEPATH: ${{ github.workspace }}/Modloader-Artifact.zip
