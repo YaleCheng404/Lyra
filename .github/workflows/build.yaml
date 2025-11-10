@@ -76,27 +76,8 @@ jobs:
           java -jar $APKTOOL b modify_tmp/apk -o ${dol_basename}.apk
           mv ${dol_basename}.apk ${{ github.workspace }}/output/
           # 清理
-          rm -rf modify_tmp/zip
+          rm -rf modify_tmp
 
-
-          # polyfill
-          dol_filename=$(ls -1 DoL*.zip | grep "polyfill")
-          dol_basename=$(basename ${dol_filename} .zip)
-          unzip -q ${dol_basename}.zip -d modify_tmp/zip
-          # 将zip的img覆盖到apk
-          cp -r "modify_tmp/zip/img" "modify_tmp/apk/assets/www/"
-          # 将zip的html覆盖到apk
-          cp "modify_tmp/zip/Degrees of Lewdity.html" "modify_tmp/apk/assets/www/index.html"
-          # 打包
-          pushd modify_tmp/zip
-          zip -q -r ${dol_basename}.zip *
-          mv ${dol_basename}.zip ${{ github.workspace }}/output/
-          popd
-          # apk
-          java -jar $APKTOOL b modify_tmp/apk -o ${dol_basename}.apk
-          mv ${dol_basename}.apk ${{ github.workspace }}/output/
-          # 清理
-          rm -rf modify_tmp/zip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -116,7 +97,7 @@ jobs:
       fail-fast: true
       matrix:
         pack: [zip, apk]
-        code: [6, 7, 39, 263, 295, 518, 774, 1030, 1286, 2054, 2310, polyfill-7]
+        code: [6, 7, 39, 263, 295, 518, 774, 1030, 1286, 2054, 2310]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -146,7 +127,8 @@ jobs:
             echo "SIGNING_KEY not set; generating temporary debug keystore"
             keytool -genkeypair -alias dol -keystore dol.jks -storepass dolchs -keypass dolchs -keyalg RSA -keysize 2048 -validity 36500 -dname "CN=DoL Lyra, OU=CI, O=Lyra, L=Internet, S=NA, C=US"
           fi
-          ./mod.sh ${{ matrix.pack }} ${{ matrix.code }} ${{ github.ref_name }}
+          echo "Running mod.sh pack=${{ matrix.pack }} code=${{ matrix.code }} ref=${{ github.ref_name }}"
+          ./mod.sh "${{ matrix.pack }}" "${{ matrix.code }}" "${{ github.ref_name }}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

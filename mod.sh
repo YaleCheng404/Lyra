@@ -25,15 +25,20 @@ fi
 # 参数1 包类型 (zip apk)
 VERSION=$1
 # 参数2 MOD代码
-MOD_CODE=$2
+MOD_CODE_RAW=$2
+MOD_CODE=$MOD_CODE_RAW
 # 参数3 可选，格式为月日，如 1231
 DATE_PARAM=${3:-}
 if [[ "$VERSION" != "zip" && "$VERSION" != "apk" ]]; then
   echo "Error: VERSION must be either 'zip' or 'apk'." >&2
   exit 1
 fi
+if [[ $MOD_CODE == polyfill-* ]]; then
+  echo "Deprecated polyfill code \"$MOD_CODE\" detected; using numeric suffix only"
+  MOD_CODE=${MOD_CODE#polyfill-}
+fi
 if ! [[ $MOD_CODE =~ ^[0-9]+$ ]]; then
-  echo "Error: MOD_CODE must be numeric (e.g. 6)." >&2
+  echo "Error: MOD_CODE \"$MOD_CODE_RAW\" must be numeric (e.g. 6)." >&2
   exit 1
 fi
 MOD_CODE=$((10#$MOD_CODE))
@@ -395,24 +400,12 @@ fun_ucb() {
 
 ls -la
 
-if [[ ${MOD_CODE} = polyfill-* ]]; then
-  echo polyfill-6 Use i18n cheat csd base
-  # 查找包含 polyfill 的文件
-  FILE_NAME=$(find . -maxdepth 1 -name "DoL*polyfill*.*" -type f | head -n 1 | sed 's|^\./||')
-  if [ -z "$FILE_NAME" ]; then
-    echo "Error: No polyfill file found"
-    exit 1
-  fi
-  IS_POLYFILL=1
-  MOD_CODE=$(echo $MOD_CODE | cut -d '-' -f 2)
-else
-  echo 6 Use i18n cheat csd base
-  # 查找不包含 polyfill 的文件
-  FILE_NAME=$(find . -maxdepth 1 -name "DoL*.*" -type f ! -name "*polyfill*" | head -n 1 | sed 's|^\./||')
-  if [ -z "$FILE_NAME" ]; then
-    echo "Error: No non-polyfill file found"
-    exit 1
-  fi
+echo 6 Use i18n cheat csd base
+# Locate DoL package (ignore legacy polyfill builds)
+FILE_NAME=$(find . -maxdepth 1 -name "DoL*.*" -type f ! -name "*polyfill*" | head -n 1 | sed 's|^\./||')
+if [ -z "$FILE_NAME" ]; then
+  echo "Error: No base game file found"
+  exit 1
 fi
 
 case "$VERSION" in
