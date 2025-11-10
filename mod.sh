@@ -392,24 +392,27 @@ fun_ucb() {
 }
 
 # 入口
-if [[ "$MOD_CODE" -eq 134 ]]; then
-  echo 134-Use susato cheat csd
-  FILE_NAME=$(basename DoL*-134."$VERSION")
-elif [[ "$MOD_CODE" -eq 132 ]]; then
-  echo 132-Use susato csd
-  FILE_NAME=$(basename DoL*-132."$VERSION")
-elif (( (MOD_CODE & 6) == 6 )); then
-  echo 6-Use cheat csd base
-  FILE_NAME=$(basename DoL*-6."$VERSION")
-elif (( (MOD_CODE & 4) == 4 )); then
-  echo 4-Use csd base
-  FILE_NAME=$(basename DoL*-4."$VERSION")
-elif (( (MOD_CODE & 2) == 2 )); then
-  echo 2-Use cheat base
-  FILE_NAME=$(basename DoL*-2."$VERSION")
+
+ls -la
+
+if [[ ${MOD_CODE} = polyfill-* ]]; then
+  echo polyfill-6 Use i18n cheat csd base
+  # 查找包含 polyfill 的文件
+  FILE_NAME=$(find . -maxdepth 1 -name "DoL*polyfill*.*" -type f | head -n 1 | sed 's|^\./||')
+  if [ -z "$FILE_NAME" ]; then
+    echo "Error: No polyfill file found"
+    exit 1
+  fi
+  IS_POLYFILL=1
+  MOD_CODE=$(echo $MOD_CODE | cut -d '-' -f 2)
 else
-  echo 0-Use i18n only
-  FILE_NAME=$(basename DoL*-0."$VERSION")
+  echo 6 Use i18n cheat csd base
+  # 查找不包含 polyfill 的文件
+  FILE_NAME=$(find . -maxdepth 1 -name "DoL*.*" -type f ! -name "*polyfill*" | head -n 1 | sed 's|^\./||')
+  if [ -z "$FILE_NAME" ]; then
+    echo "Error: No non-polyfill file found"
+    exit 1
+  fi
 fi
 
 case "$VERSION" in
