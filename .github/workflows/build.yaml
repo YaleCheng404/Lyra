@@ -64,6 +64,7 @@ jobs:
           # patch apk
           pushd modify_tmp/apk/assets/www
           patch < ${{ github.workspace }}/patches/0001-dol-android-save-to-file.patch
+          sed -i 's/saveAs(/cordova.plugins.saveDialog.saveFile(/g' index.html
           rm -f index.html.orig
           popd
 
@@ -98,7 +99,7 @@ jobs:
       fail-fast: true
       matrix:
         pack: [zip, apk]
-        code: [295, 774, 1286, 2310]
+        code: [2, 3, 35, 259, 291, 514, 770, 1026, 1282, 2050, 2306, 4098, 4354, polyfill-3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

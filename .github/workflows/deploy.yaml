@@ -30,7 +30,13 @@ jobs:
         uses: robinraju/release-downloader@v1.12
         with:
           latest: true
-          fileName: "DoL-*-Lyra-*-besc-cheat-csd-hikari-ucb-*.zip"
+          fileName: "DoL-*-Lyra-*-besc-*.zip"
+      - id: getRelease-polyfill
+        name: release-downloader
+        uses: robinraju/release-downloader@v1.12
+        with:
+          latest: true
+          fileName: "DoL-*-Lyra-*-polyfill-besc-*.zip"
 
       - name: Extract downloaded file
         run: |
