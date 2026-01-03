@@ -33,13 +33,13 @@ jobs:
         uses: robinraju/release-downloader@v1.12
         with:
           latest: true
-          fileName: "DoL-*-Lyra-*-besc-*.zip"
+          fileName: "DoL-*-Lyra-*-besc-hikari-ucb-*.zip"
       - id: getRelease-polyfill
         name: release-downloader
         uses: robinraju/release-downloader@v1.12
         with:
           latest: true
-          fileName: "DoL-*-Lyra-*-polyfill-besc-*.zip"
+          fileName: "DoL-*-Lyra-*-polyfill-besc-hikari-ucb-*.zip"
 
       - name: Extract downloaded file
         run: |
@@ -120,14 +120,13 @@ jobs:
               manifest_file.truncate()
               manifest_file.write(json.dumps(manifest_json, indent=2))
 
-      - name: Deploy to organization repo
+      - name: Deploy to pages branch
         uses: crazy-max/ghaction-github-pages@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_PAT: ${{ secrets.GH_PAT_LYRA }}
         with:
-          repo: DoL-Lyra/dol-lyra.github.io
-          # https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/blob/e88b5f05a7e1c210edc80e9d6fb32716abd24e60/.github/workflows/main.yml#L120
+          repo: ${{ github.repository }}
+          # Deploy built PWA to project pages branch in the same repo
           build_dir: ./modloader-temp
           keep_history: false
           target_branch: pages
