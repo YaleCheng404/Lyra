@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="{{ .Site.LanguageCode }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ if .Title }}{{ .Title }} | {{ end }}{{ .Site.Title }}</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #1f2328;
+        --muted: #656d76;
+        --border: #d0d7de;
+        --link: #0969da;
+        --panel: #f6f8fa;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --fg: #e6edf3;
+          --muted: #8d96a0;
+          --border: #30363d;
+          --link: #58a6ff;
+          --panel: #161b22;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.6;
+        color: var(--fg);
+        background: var(--bg);
+      }
+      header, main, footer {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      nav {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      a { color: var(--link); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      h1, h2, h3 { line-height: 1.25; }
+      table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        border-collapse: collapse;
+      }
+      th, td {
+        border: 1px solid var(--border);
+        padding: 8px 10px;
+        vertical-align: top;
+      }
+      th { background: var(--panel); }
+      blockquote, .alert {
+        margin: 16px 0;
+        padding: 12px 14px;
+        border-left: 4px solid var(--link);
+        background: var(--panel);
+      }
+      code, pre {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      }
+      footer {
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong><a href="{{ .Site.Home.RelPermalink }}">{{ .Site.Title }}</a></strong>
+      <nav>
+        <a href="{{ relURL "downloads/" }}">下载</a>
+        <a href="{{ relURL "docs/" }}">版本说明</a>
+        <a href="{{ relURL "troubleshoot/" }}">疑难解答</a>
+      </nav>
+    </header>
+    <main>
+      {{ block "main" . }}{{ end }}
+    </main>
+    <footer>
+      Built by GitHub Actions from this repository.
+    </footer>
+  </body>
+</html>

@@ -1,10 +1,11 @@
 name: Deploy Online
 
 on:
-  # release:
-  #   types: [released]
   workflow_dispatch:
   workflow_call:
+
+permissions:
+  contents: write
 
 env:
   DOWNLOAD_RELEASE_TEMP_PATH: ${{ github.workspace }}/modloader-temp
@@ -25,36 +26,35 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Make Directories
-        run: |
-          mkdir -p "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}"
+        run: mkdir -p "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}"
 
       - id: getRelease
-        name: release-downloader
+        name: Download latest normal release
         uses: robinraju/release-downloader@v1
         with:
           latest: true
           fileName: "DoL-*-Lyra-*-besc-[0-9]*.zip"
+
       - id: getRelease-polyfill
-        name: release-downloader
+        name: Download latest polyfill release
         uses: robinraju/release-downloader@v1
         with:
           latest: true
           fileName: "DoL-*-Lyra-*-polyfill-besc-*.zip"
 
-      - name: Extract downloaded file
+      - name: Extract downloaded files
         run: |
           echo "Downloaded DoL: ${{ steps.getRelease.outputs.tag_name }}"
-          unzip -q ${{ fromJson(steps.getRelease.outputs.downloaded_files)[0] }} -d ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
+          unzip -q ${{ fromJson(steps.getRelease.outputs.downloaded_files)[0] }} -d "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}"
           mv "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/Degrees of Lewdity.html" "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/dol.html"
 
           echo "Downloaded DoL Polyfill: ${{ steps.getRelease-polyfill.outputs.tag_name }}"
-          # unzip with overwrite
-          unzip -qo ${{ fromJson(steps.getRelease-polyfill.outputs.downloaded_files)[0] }} -d ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
+          unzip -qo ${{ fromJson(steps.getRelease-polyfill.outputs.downloaded_files)[0] }} -d "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}"
           mv "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/Degrees of Lewdity.html" "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/dol-polyfill.html"
 
       - name: Construct PWA
-        run: |
-          cp -r .github/pwa/* ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
+        run: cp -r .github/pwa/* "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}"
+
       - name: Modify HTML
         shell: python3 {0}
         run: |
@@ -79,8 +79,7 @@ jobs:
               index_html_file.write(index_html)
 
       - name: Pack Artifact
-        run: |
-          7z a ${{ env.UPLOAD_ARTIFACT_FILEPATH }} ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/*
+        run: 7z a "${{ env.UPLOAD_ARTIFACT_FILEPATH }}" "${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/*"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v6
@@ -101,14 +100,13 @@ jobs:
 
       - name: Extract Artifact
         working-directory: ${{ github.workspace }}
-        run: |
-          unzip -q ${{ env.UPLOAD_ARTIFACT_FILEPATH }} -d ./modloader-temp
+        run: unzip -q "${{ env.UPLOAD_ARTIFACT_FILEPATH }}" -d ./modloader-temp
 
       - name: Modify manifest.json
         shell: python3 {0}
         run: |
           import json
-            
+
           for manifest_name in ["${{ env.MANIFEST_JSON_NORMAL_FILENAME }}", "${{ env.MANIFEST_JSON_POLYFILL_FILENAME }}"]:
             with open(f"${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}/{manifest_name}", "r+", encoding="utf-8") as manifest_file:
               manifest_json = json.loads(manifest_file.read())
@@ -121,17 +119,14 @@ jobs:
               manifest_file.write(json.dumps(manifest_json, indent=2))
 
       - name: Remove gitignore from img
-        run: |
-          rm -f ./modloader-temp/img/.gitignore
+        run: rm -f ./modloader-temp/img/.gitignore
 
-      - name: Deploy to organization repo
+      - name: Deploy to current repository online branch
         uses: crazy-max/ghaction-github-pages@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_PAT: ${{ secrets.GH_PAT_LYRA }}
         with:
-          repo: DoL-Lyra/dol-lyra.github.io
-          # https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/blob/e88b5f05a7e1c210edc80e9d6fb32716abd24e60/.github/workflows/main.yml#L120
+          repo: ${{ github.repository }}
           build_dir: ./modloader-temp
           keep_history: false
-          target_branch: pages
+          target_branch: online

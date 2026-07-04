@@ -1,20 +1,23 @@
 name: Trigger
 
 on:
+  schedule:
+    - cron: "17 20 * * *"
   workflow_dispatch:
 
-env:
-  GIT_EMAIL: ${{ secrets.GIT_EMAIL }}
-  GIT_USERNAME: ${{ secrets.GIT_USERNAME }}
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: upstream-trigger
+  cancel-in-progress: false
 
 jobs:
-  check_update:
+  check-update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -27,11 +30,14 @@ jobs:
 
       - name: Check for updates
         id: check
-        run: python main.py check --github-output $GITHUB_OUTPUT -v
+        run: python main.py check --github-output "$GITHUB_OUTPUT" -v
 
-      - name: Create tag
+      - name: Trigger release build
         if: steps.check.outputs.need_update == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.check.outputs.new_tag }}
-          draft: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build.yaml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ github.ref_name }}" \
+            -f release_tag="${{ steps.check.outputs.new_tag }}"

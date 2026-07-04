@@ -21,6 +21,7 @@ DoL-Lyra 构建系统
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -218,10 +219,24 @@ def cmd_check(args) -> int:
     """
     import requests
 
+    from lyra.config_loader import load_build_config
+
     setup_logging(args.verbose)
 
+    build_config = load_build_config()
+    source_repo = args.source_repo or build_config.chs_repo_url
+
+    current_repo = os.environ.get("GITHUB_REPOSITORY", "")
+    current_owner, _, current_name = current_repo.partition("/")
+    github_owner = args.github_owner or current_owner or build_config.github_owner
+    github_repo = args.github_repo or current_name or build_config.github_repo
+
+    if not github_owner or not github_repo:
+        logger.error("无法确定当前 GitHub 仓库，请传入 --github-owner 和 --github-repo")
+        return 1
+
     # 获取汉化仓库最新 release
-    url = "https://api.github.com/repos/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/releases/latest"
+    url = f"https://api.github.com/repos/{source_repo}/releases/latest"
 
     try:
         response = requests.get(url, timeout=30)
@@ -231,23 +246,31 @@ def cmd_check(args) -> int:
         logger.error(f"获取汉化仓库版本失败: {e}")
         return 1
 
-    # 解析版本号
-    # 格式: v0.5.7.9-chs-5.1.0a
-    game_ver = origin_tag.split("-")[0].lstrip("v")
-    chs_ver = origin_tag.split("-")[2]
+    # 解析版本号，格式: v0.5.7.9-chs-5.1.0a
+    try:
+        origin_parts = origin_tag.split("-")
+        game_ver = origin_parts[0].lstrip("v")
+        chs_ver = origin_parts[2]
+    except IndexError:
+        logger.error(f"无法解析汉化仓库版本: {origin_tag}")
+        return 1
 
     # 获取本仓库最新 tag
+    lyra_tag = ""
+    lyra_game_ver = ""
+    lyra_chs_ver = ""
     try:
-        mods_url = f"https://api.github.com/repos/{args.github_owner}/{args.github_repo}/releases/latest"
+        mods_url = f"https://api.github.com/repos/{github_owner}/{github_repo}/releases/latest"
         response = requests.get(mods_url, timeout=30)
         response.raise_for_status()
         lyra_tag = response.json().get("tag_name", "")
-        lyra_game_ver = lyra_tag.split("-")[0].lstrip("v")
-        lyra_chs_ver = lyra_tag.split("-")[1]
+        lyra_parts = lyra_tag.split("-")
+        lyra_game_ver = lyra_parts[0].lstrip("v")
+        lyra_chs_ver = lyra_parts[1]
     except Exception as e:
         logger.warning(f"获取本仓库版本失败（可能是首次发布）: {e}")
 
-    need_update = chs_ver != lyra_chs_ver
+    need_update = (game_ver != lyra_game_ver) or (chs_ver != lyra_chs_ver)
 
     from datetime import datetime, timezone, timedelta
 
@@ -267,13 +290,17 @@ def cmd_check(args) -> int:
 
     if need_update:
         logger.info("需要更新！")
-        logger.info(f"  汉化仓库: {origin_tag}")
-        logger.info(f"  本仓库: {lyra_tag}")
+        logger.info(f"  汉化仓库 ({source_repo}): {origin_tag}")
+        logger.info(f"  本仓库 ({github_owner}/{github_repo}): {lyra_tag or '(无发布)'}")
+    else:
+        logger.info("当前已是最新版本")
 
     if args.github_output:
         with open(args.github_output, "a") as f:
             f.write(f"need_update={'true' if need_update else 'false'}\n")
             f.write(f"origin_tag={origin_tag}\n")
+            f.write(f"game_ver={game_ver}\n")
+            f.write(f"chs_ver={chs_ver}\n")
             f.write(f"new_tag={result['new_tag']}\n")
     else:
         print(json.dumps(result))
@@ -350,8 +377,8 @@ def main():
     page_parser.add_argument("--version", dest="version", help="版本号")
     page_parser.add_argument("--tag", help="版本 tag（替代 --version）")
     page_parser.add_argument("--output", help="输出文件路径")
-    page_parser.add_argument("--github-owner", default="sakarie9", help="GitHub 用户名")
-    page_parser.add_argument("--github-repo", default="DoL-Lyra", help="GitHub 仓库名")
+    page_parser.add_argument("--github-owner", help="GitHub 用户名")
+    page_parser.add_argument("--github-repo", help="GitHub 仓库名")
     page_parser.add_argument("--versions-file", help="版本信息文件路径")
     page_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
@@ -380,9 +407,15 @@ def main():
     )
     check_parser.add_argument("--github-output", help="GitHub Actions 输出文件")
     check_parser.add_argument(
-        "--github-owner", default="sakarie9", help="GitHub 用户名"
+        "--source-repo",
+        help="上游汉化仓库，格式 owner/repo（默认读取 config/build.toml）",
     )
-    check_parser.add_argument("--github-repo", default="DoL-Lyra", help="GitHub 仓库名")
+    check_parser.add_argument(
+        "--github-owner", help="GitHub 用户名（默认使用 GITHUB_REPOSITORY 或配置文件）"
+    )
+    check_parser.add_argument(
+        "--github-repo", help="GitHub 仓库名（默认使用 GITHUB_REPOSITORY 或配置文件）"
+    )
     check_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
     args = parser.parse_args()

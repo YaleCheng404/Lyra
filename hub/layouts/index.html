@@ -1,0 +1,15 @@
+{{ define "main" }}
+  <article>
+    {{ .Content }}
+  </article>
+  {{ $downloads := where .Site.RegularPages "Section" "posts" }}
+  {{ $downloadPages := where $downloads "File.Dir" "posts/downloads/" }}
+  {{ if $downloadPages }}
+    <h2>最新下载</h2>
+    <ul>
+      {{ range first 10 $downloadPages.ByDate.Reverse }}
+        <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+      {{ end }}
+    </ul>
+  {{ end }}
+{{ end }}

@@ -1,0 +1,13 @@
+{{ define "main" }}
+  <article>
+    {{ .Content }}
+  </article>
+  {{ if .Pages }}
+    <h2>页面</h2>
+    <ul>
+      {{ range .Pages.ByDate.Reverse }}
+        <li><a href="{{ .RelPermalink }}">{{ .Title }}</a></li>
+      {{ end }}
+    </ul>
+  {{ end }}
+{{ end }}

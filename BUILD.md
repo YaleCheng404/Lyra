@@ -500,7 +500,7 @@ python main.py page --tag v0.5.7.9-5.0.2a-0112
 
 # 自定义GitHub仓库
 python main.py page --tag v0.5.7.9-5.0.2a-0112 \
-  --github-owner sakarie9 \
+  --github-owner YOUR_USERNAME \
   --github-repo DoL-Lyra \
   -o index.md
 ```
@@ -2221,7 +2221,7 @@ Tag 推送后，GitHub Actions 会自动：
 ## 相关链接
 
 - **GitHub 仓库**：<https://github.com/DoL-Lyra/Lyra>
-- **下载站**：<https://dol-lyra.github.io/hub/>
+- **下载站**：当前仓库 GitHub Pages
 - **汉化仓库**：<https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization>
 - **问题反馈**：<https://github.com/DoL-Lyra/Lyra/issues>
 - **讨论区**：<https://github.com/DoL-Lyra/Lyra/discussions>

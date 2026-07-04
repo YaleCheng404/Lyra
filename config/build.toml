@@ -8,6 +8,9 @@ uber_apk_signer = "https://github.com/patrickfav/uber-apk-signer/releases/downlo
 # DOLP 基础 URL
 dolp_base = "https://gitgud.io/Frostberg/degrees-of-lewdity-plus/-/archive/master/degrees-of-lewdity-plus-master.tar.gz?path=imagepacks"
 
+# 上游汉化发布仓库
+chs_repo = "Eltirosto/Degrees-of-Lewdity-Chinese-Localization"
+
 [paths]
 # 工作目录
 workspace = "workspace"
@@ -21,9 +24,9 @@ base = "base"
 prepare_package = "prepare_package"
 
 [github]
-# GitHub 发布配置
-owner = "sakarie9"
-repo = "DoL-Lyra"
+# GitHub 发布配置。留空时 GitHub Actions 使用当前仓库。
+owner = ""
+repo = ""
 
 # APK 包名替换规则
 [[apk.replacements]]

@@ -1,0 +1,16 @@
+baseURL = "/"
+title = "DoL-Lyra Hub"
+languageCode = "zh-cn"
+defaultContentLanguage = "zh-cn"
+enableRobotsTXT = true
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[permalinks]
+  posts = "/:slug/"
+
+[params]
+  description = "DoL-Lyra independent release hub"

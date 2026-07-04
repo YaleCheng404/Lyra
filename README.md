@@ -23,17 +23,30 @@
 
 **该仓库并非 DoL 或汉化组官方发布渠道**
 
+### GitHub Actions 自动构建
+
+当前仓库可以独立运行自动发布流程：
+
+- `Trigger` workflow 会定时检查上游汉化仓库 release，发现新版本后触发 `Build`。
+- `Build` workflow 会下载上游资源、构建 ZIP/APK、发布到当前仓库 Release，并把下载页部署到当前仓库 GitHub Pages。
+- `hub/` 目录提供内置下载站。首次使用时在仓库 Settings -> Pages 中启用 GitHub Actions 作为 Pages 来源即可。
+
+可选配置：
+
+- `SIGNING_KEY`：base64 编码的 APK keystore。未配置时 CI 会自动生成临时 keystore，保证 fork 仓库也能完成 APK 构建。
+- `config/build.toml` 中的 `urls.chs_repo`：需要切换上游汉化仓库时修改该字段。
+
 ## 各版本说明
 
-->->-> [【版本说明】](https://dol-lyra.github.io/hub/docs/) <-<-<-
+自动发布后可在当前仓库 GitHub Pages 的 `版本说明` 页面查看。
 
 ## 下载
 
-->->-> [【下载站】](https://dol-lyra.github.io/hub/) <-<-<-
+自动发布后可在当前仓库 Release 下载构建产物，也可在当前仓库 GitHub Pages 的 `下载列表` 页面查看。
 
 ## 在线
 
-[【DoL-Lyra Github Pages】](https://dol-lyra.github.io)
+可手动运行 `Deploy Online` workflow，把最新 BESC 版本部署到当前仓库的 `online` 分支。
 
 > 在线版仅使用 `BESC+作弊+CSD` 构建，需要其他版本请前往下载本地版
 
@@ -41,7 +54,7 @@
 
 > [!NOTE]
 >
->  参考 [【疑难解答】](https://dol-lyra.github.io/hub/troubleshoot/)
+>  自动发布后可在当前仓库 GitHub Pages 的 `疑难解答` 页面查看。
 
 > [!IMPORTANT]
 >

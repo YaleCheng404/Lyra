@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime, timezone
 import logging
+import os
 
 try:
     import pytablewriter
@@ -23,6 +24,15 @@ from .config import ModCode
 from .version import VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def _github_repo_from_env() -> tuple[str, str]:
+    """从 GitHub Actions 环境变量读取当前仓库。"""
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    owner, sep, repo = repository.partition("/")
+    if sep:
+        return owner, repo
+    return "", ""
 
 
 def load_version_info(path: Path) -> list[VersionInfo]:
@@ -51,17 +61,23 @@ class DownloadPageConfig:
     def __post_init__(self):
         """如果没有指定 GitHub 信息，从配置文件加载"""
         if not self.github_owner or not self.github_repo:
+            env_owner, env_repo = _github_repo_from_env()
             try:
                 build_config = load_build_config()
                 if not self.github_owner:
-                    self.github_owner = build_config.github_owner or "sakarie9"
+                    self.github_owner = env_owner or build_config.github_owner
                 if not self.github_repo:
-                    self.github_repo = build_config.github_repo or "DoL-Lyra"
+                    self.github_repo = env_repo or build_config.github_repo
             except Exception:
                 if not self.github_owner:
-                    self.github_owner = "sakarie9"
+                    self.github_owner = env_owner
                 if not self.github_repo:
-                    self.github_repo = "DoL-Lyra"
+                    self.github_repo = env_repo
+
+        if not self.github_owner or not self.github_repo:
+            raise ValueError(
+                "无法确定 GitHub 仓库，请传入 github_owner/github_repo 或设置 GITHUB_REPOSITORY"
+            )
 
         # 解析版本号，例如 v0.5.7.9-5.0.2a-0112
         if not self.base_game_version or not self.chs_version or not self.date_suffix:
@@ -276,7 +292,7 @@ class DownloadPageGenerator:
             "{{< alert >}}",
             "使用本整合出现问题时请先使用 [汉化仓库](https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization) 发布的版本，或是汉化仓库提供的 [汉化在线版](https://eltirosto.github.io/Degrees-of-Lewdity-Chinese-Localization/)，测试是否同样出现问题，参考 [发布下载版](https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/blob/main/README.md#%E5%8F%91%E5%B8%83%E4%B8%8B%E8%BD%BD%E7%89%88)。",
             "<br>",
-            "如问题同样能够复现请前往汉化仓库反馈；如问题只在本整合内出现请向 [本仓库](https://github.com/DoL-Lyra/Lyra/issues) 反馈",
+            f"如问题同样能够复现请前往汉化仓库反馈；如问题只在本整合内出现请向 [本仓库](https://github.com/{self.config.github_owner}/{self.config.github_repo}/issues) 反馈",
             "{{< /alert >}}",
             "<br>",
             "{{< alert >}}",
@@ -387,8 +403,8 @@ class DownloadPageGenerator:
 def generate_download_page(
     version: str,
     output_path: Optional[Path] = None,
-    github_owner: str = "sakarie9",
-    github_repo: str = "DoL-Lyra",
+    github_owner: str = "",
+    github_repo: str = "",
     versions_file: Optional[Path] = None,
 ) -> str:
     """
