@@ -9,12 +9,11 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
-from .paths import BuildPaths
-from .version import LyraVersion
 from .combo import CombinationCalculator
+from .paths import BuildPaths
 from .utils import setup_logging
+from .version import LyraVersion
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +23,13 @@ class ParallelBuildConfig:
     """并行构建配置"""
 
     pack_types: list[str]  # 要构建的包类型列表 ["zip", "apk"]
-    version: Optional[LyraVersion] = None  # 版本信息
-    max_workers: Optional[int] = None  # 最大并发数
+    version: LyraVersion | None = None  # 版本信息
+    max_workers: int | None = None  # 最大并发数
     include_polyfill: bool = True  # 是否包含polyfill版本
     verbose: bool = False  # 是否详细输出
 
 
-def _build_task_worker(args: tuple) -> tuple[str, str, bool, Optional[str]]:
+def _build_task_worker(args: tuple) -> tuple[str, str, bool, str | None]:
     """
     并行构建工作函数
 
@@ -49,9 +48,9 @@ def _build_task_worker(args: tuple) -> tuple[str, str, bool, Optional[str]]:
 
     try:
         # 在子进程中导入以避免序列化问题
+        from .build import BuildTask, build_single
         from .paths import BuildPaths
         from .version import LyraVersion
-        from .build import BuildTask, build_single
 
         paths = BuildPaths(workspace=Path(workspace))
 
@@ -128,24 +127,19 @@ class ParallelBuilder:
 
         # 按包类型分批处理
         for pack_type in self.config.pack_types:
-            logger.info(f"\n{'='*50}")
+            logger.info(f"\n{'=' * 50}")
             logger.info(f"构建 {pack_type.upper()} 包 ({len(codes)} 个)")
-            logger.info(f"{'='*50}")
+            logger.info(f"{'=' * 50}")
 
-            if pack_type == "zip":
-                # ZIP 可以完全并行
-                s, f = self._build_parallel(pack_type, codes, version_dict, max_workers)
-            else:
-                # APK 并行构建
-                s, f = self._build_parallel(pack_type, codes, version_dict, max_workers)
+            s, f = self._build_parallel(pack_type, codes, version_dict, max_workers)
 
             success_count += s
             fail_count += f
 
         # 输出统计
-        logger.info(f"\n{'='*50}")
+        logger.info(f"\n{'=' * 50}")
         logger.info(f"构建完成: 成功 {success_count}, 失败 {fail_count}")
-        logger.info(f"{'='*50}")
+        logger.info(f"{'=' * 50}")
 
         return success_count, fail_count
 
@@ -153,7 +147,7 @@ class ParallelBuilder:
         self,
         pack_type: str,
         codes: list[str],
-        version_dict: Optional[dict],
+        version_dict: dict | None,
         max_workers: int,
     ) -> tuple[int, int]:
         """
@@ -217,9 +211,9 @@ class ParallelBuilder:
 
 def build_all_parallel(
     paths: BuildPaths,
-    version: Optional[LyraVersion] = None,
-    pack_types: Optional[list[str]] = None,
-    max_workers: Optional[int] = None,
+    version: LyraVersion | None = None,
+    pack_types: list[str] | None = None,
+    max_workers: int | None = None,
     include_polyfill: bool = True,
     verbose: bool = False,
 ) -> tuple[int, int]:

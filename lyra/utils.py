@@ -11,10 +11,10 @@ import subprocess
 import tarfile
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
+from pathlib import Path, PurePosixPath
 
 import requests
+from packaging.version import Version
 from packaging.version import parse as parse_version
 from tqdm import tqdm
 
@@ -31,7 +31,9 @@ def setup_logging(verbose: bool = False):
     )
 
 
-def download_file(url: str, dest: Path, quiet: bool = False) -> Path:
+def download_file(
+    url: str, dest: Path, quiet: bool = False, expected_sha256: str | None = None
+) -> Path:
     """
     下载文件到指定路径
 
@@ -39,33 +41,57 @@ def download_file(url: str, dest: Path, quiet: bool = False) -> Path:
         url: 下载URL
         dest: 目标路径
         quiet: 是否静默模式
+        expected_sha256: 可选的 SHA-256 校验值
 
     Returns:
         下载的文件路径
     """
-    if dest.exists():
+    expected_sha256 = (
+        expected_sha256.removeprefix("sha256:").lower() if expected_sha256 else None
+    )
+    if expected_sha256 and (
+        len(expected_sha256) != 64
+        or any(char not in "0123456789abcdef" for char in expected_sha256)
+    ):
+        raise ValueError("expected_sha256 必须是 64 位十六进制字符串")
+
+    if dest.exists() and (
+        not expected_sha256 or get_file_hash(dest, "sha256") == expected_sha256
+    ):
         logger.debug(f"文件已存在，跳过下载: {dest}")
         return dest
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"下载: {url}")
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, timeout=60)
     response.raise_for_status()
 
     total_size = int(response.headers.get("content-length", 0))
 
-    with open(dest, "wb") as f:
-        if quiet or total_size == 0:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        else:
-            with tqdm(
-                total=total_size, unit="B", unit_scale=True, desc=dest.name
-            ) as pbar:
+    partial = dest.with_name(f"{dest.name}.part")
+    try:
+        with open(partial, "wb") as f:
+            if quiet or total_size == 0:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-                    pbar.update(len(chunk))
+            else:
+                with tqdm(
+                    total=total_size, unit="B", unit_scale=True, desc=dest.name
+                ) as pbar:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                        pbar.update(len(chunk))
+
+        if expected_sha256:
+            actual = get_file_hash(partial, "sha256")
+            if actual != expected_sha256:
+                raise ValueError(
+                    f"{dest.name} SHA-256 校验失败: expected={expected_sha256}, actual={actual}"
+                )
+        partial.replace(dest)
+    finally:
+        partial.unlink(missing_ok=True)
 
     return dest
 
@@ -130,16 +156,25 @@ def extract_tar_gz(tar_path: Path, dest_dir: Path, strip_components: int = 0) ->
 
     with tarfile.open(tar_path, "r:gz") as tf:
         for member in tf.getmembers():
-            if strip_components > 0:
-                # 移除前N个路径组件
-                parts = Path(member.name).parts
-                if len(parts) <= strip_components:
-                    continue
-                member.name = str(Path(*parts[strip_components:]))
-
-            tf.extract(member, dest_dir)
+            name = _safe_tar_name(member.name, strip_components)
+            if name is None:
+                continue
+            if member.issym() or member.islnk():
+                raise ValueError(f"不允许 TAR 链接成员: {member.name}")
+            tf.extract(member.replace(name=name), dest_dir, filter="data")
 
     return dest_dir
+
+
+def _safe_tar_name(name: str, strip_components: int) -> str | None:
+    """校验并裁剪 TAR 内部路径。"""
+    if "\\" in name:
+        raise ValueError(f"不安全的 TAR 路径: {name}")
+    path = PurePosixPath(name)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"不安全的 TAR 路径: {name}")
+    parts = path.parts[strip_components:]
+    return str(PurePosixPath(*parts)) if parts else None
 
 
 def copy_directory(src: Path, dest: Path, overwrite: bool = True):
@@ -210,7 +245,7 @@ def safe_remove(path: Path) -> bool:
 
 def run_command(
     cmd: list[str],
-    cwd: Optional[Path] = None,
+    cwd: Path | None = None,
     capture_output: bool = False,
     check: bool = True,
 ) -> subprocess.CompletedProcess:
@@ -232,7 +267,7 @@ def run_command(
     )
 
 
-def find_game_file(directory: Path, include_polyfill: bool = False) -> Optional[Path]:
+def find_game_file(directory: Path, include_polyfill: bool = False) -> Path | None:
     """
     查找游戏文件
 
@@ -286,8 +321,8 @@ def parse_version_from_filename(filename: str) -> tuple[str, str]:
     dol_ver = ""
     chs_ver = ""
 
-    for i, part in enumerate(parts):
-        if part.startswith("v") or part[0].isdigit():
+    for part in parts:
+        if part.startswith("v") or part[:1].isdigit():
             if not dol_ver:
                 dol_ver = part
             elif not chs_ver:
@@ -310,7 +345,7 @@ class GitHubReleaseAsset:
 
 def get_github_release_asset(
     repo: str, asset_pattern: str, tag: str = "latest"
-) -> Optional[GitHubReleaseAsset]:
+) -> GitHubReleaseAsset | None:
     """
     从 GitHub Release 获取资源信息
 
@@ -337,7 +372,7 @@ def get_github_release_asset(
         assets = release_data.get("assets", [])
 
         # 收集所有匹配的资源及其版本号
-        matched_assets: list[tuple[GitHubReleaseAsset, "parse_version"]] = []
+        matched_assets: list[tuple[GitHubReleaseAsset, Version]] = []
 
         for asset in assets:
             name = asset.get("name", "")
@@ -406,7 +441,7 @@ def _extract_version_from_filename(filename: str) -> str:
     return "unknown"
 
 
-def get_gitgud_commit_hash(repo: str, branch: str = "master") -> Optional[str]:
+def get_gitgud_commit_hash(repo: str, branch: str = "master") -> str | None:
     """
     获取 GitGud 仓库的最新 commit hash
 

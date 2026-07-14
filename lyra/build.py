@@ -9,24 +9,23 @@ import logging
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
 
-from .paths import BuildPaths
-from .version import LyraVersion, VersionRegistry
-from .config import ModCode
-from .lyra_mod import build_lyra_mod
 from .combo import CombinationCalculator
-from .config_loader import load_build_config, get_config_loader
+from .config import ModCode
+from .config_loader import get_config_loader, load_build_config
+from .lyra_mod import build_lyra_mod
+from .paths import BuildPaths
 from .prepare import ModInjector
 from .utils import (
-    extract_zip,
-    create_zip,
-    run_command,
     copy_directory,
+    create_zip,
+    extract_zip,
+    run_command,
     safe_remove,
 )
+from .version import LyraVersion, VersionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +41,8 @@ class BuildTask:
     pack_type: str  # zip 或 apk
     mod_code: int  # MOD代码
     is_polyfill: bool = False  # 是否为polyfill版本
-    version: Optional[LyraVersion] = None  # 版本信息
-    paths: Optional[BuildPaths] = None  # 路径管理器
+    version: LyraVersion | None = None  # 版本信息
+    paths: BuildPaths | None = None  # 路径管理器
 
     def __post_init__(self):
         if self.paths is None:
@@ -60,8 +59,8 @@ class BuildTask:
         cls,
         code_str: str,
         pack_type: str,
-        version: Optional[LyraVersion] = None,
-        paths: Optional[BuildPaths] = None,
+        version: LyraVersion | None = None,
+        paths: BuildPaths | None = None,
     ) -> "BuildTask":
         """
         从代码字符串创建任务
@@ -88,9 +87,9 @@ class BuildResult:
     """构建结果"""
 
     success: bool
-    output_path: Optional[Path] = None
+    output_path: Path | None = None
     output_name: str = ""
-    error: Optional[str] = None
+    error: str | None = None
     applied_mods: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:

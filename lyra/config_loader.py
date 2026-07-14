@@ -4,11 +4,11 @@
 从 TOML 配置文件加载构建配置、功能定义和组合规则。
 """
 
-import tomllib
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
-import logging
+
+import tomllib
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +152,9 @@ class BuildConfiguration:
 
     # URLs
     apktool_url: str
+    apktool_sha256: str
     uber_apk_signer_url: str
+    uber_apk_signer_sha256: str
     dolp_base_url: str
     chs_repo_url: str
 
@@ -212,7 +214,9 @@ class BuildConfiguration:
 
         return cls(
             apktool_url=urls["apktool"],
+            apktool_sha256=urls["apktool_sha256"],
             uber_apk_signer_url=urls["uber_apk_signer"],
+            uber_apk_signer_sha256=urls["uber_apk_signer_sha256"],
             dolp_base_url=dolp_base,
             chs_repo_url=chs_repo,
             workspace_dir=paths["workspace"],
@@ -234,11 +238,11 @@ class BuildConfiguration:
 class ConfigLoader:
     """配置加载器"""
 
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Path | None = None):
         self.config_dir = config_dir or DEFAULT_CONFIG_DIR
-        self._features: Optional[list[Feature]] = None
-        self._combinations: Optional[CombinationsConfig] = None
-        self._build: Optional[BuildConfiguration] = None
+        self._features: list[Feature] | None = None
+        self._combinations: CombinationsConfig | None = None
+        self._build: BuildConfiguration | None = None
 
     def _load_toml(self, filename: str) -> dict:
         """加载 TOML 文件"""
@@ -274,14 +278,14 @@ class ConfigLoader:
             self._build = BuildConfiguration.from_dict(data)
         return self._build
 
-    def get_feature_by_id(self, feature_id: str) -> Optional[Feature]:
+    def get_feature_by_id(self, feature_id: str) -> Feature | None:
         """通过ID获取功能"""
         for f in self.features:
             if f.id == feature_id:
                 return f
         return None
 
-    def get_feature_by_bit(self, bit: int) -> Optional[Feature]:
+    def get_feature_by_bit(self, bit: int) -> Feature | None:
         """通过位值获取功能"""
         for f in self.features:
             if f.bit == bit:
@@ -296,10 +300,10 @@ class ConfigLoader:
 
 
 # 全局配置加载器实例
-_config_loader: Optional[ConfigLoader] = None
+_config_loader: ConfigLoader | None = None
 
 
-def get_config_loader(config_dir: Optional[Path] = None) -> ConfigLoader:
+def get_config_loader(config_dir: Path | None = None) -> ConfigLoader:
     """获取配置加载器实例"""
     global _config_loader
     if _config_loader is None or config_dir is not None:
@@ -307,16 +311,16 @@ def get_config_loader(config_dir: Optional[Path] = None) -> ConfigLoader:
     return _config_loader
 
 
-def load_features(config_dir: Optional[Path] = None) -> list[Feature]:
+def load_features(config_dir: Path | None = None) -> list[Feature]:
     """加载功能定义"""
     return get_config_loader(config_dir).features
 
 
-def load_combinations_config(config_dir: Optional[Path] = None) -> CombinationsConfig:
+def load_combinations_config(config_dir: Path | None = None) -> CombinationsConfig:
     """加载组合配置"""
     return get_config_loader(config_dir).combinations
 
 
-def load_build_config(config_dir: Optional[Path] = None) -> BuildConfiguration:
+def load_build_config(config_dir: Path | None = None) -> BuildConfiguration:
     """加载构建配置"""
     return get_config_loader(config_dir).build

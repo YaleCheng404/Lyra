@@ -6,9 +6,8 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
-from .config_loader import load_build_config, BuildConfiguration
+from .config_loader import BuildConfiguration, load_build_config
 
 
 @dataclass
@@ -20,7 +19,7 @@ class BuildPaths:
     """
 
     workspace: Path = field(default_factory=lambda: Path("."))
-    _config: Optional[BuildConfiguration] = field(default=None, repr=False)
+    _config: BuildConfiguration | None = field(default=None, repr=False)
 
     def __post_init__(self):
         if self._config is None:

@@ -1,47 +1,54 @@
-#!/usr/bin/env python3
-"""
-测试 get_github_release_asset 函数
+"""Tests for GitHub release asset selection."""
 
-直接调用函数并打印结果，从真实 GitHub API 获取数据。
-"""
+import unittest
+from unittest.mock import Mock, patch
 
 from lyra.utils import get_github_release_asset
 
 
-def main():
-    print("=" * 70)
-    print("测试 get_github_release_asset 函数")
-    print("=" * 70)
+class GitHubReleaseAssetTests(unittest.TestCase):
+    @staticmethod
+    def response(assets):
+        response = Mock()
+        response.json.return_value = {"tag_name": "mod", "assets": assets}
+        return response
 
-    # 测试数据来自 build.toml 中的配置
-    test_cases = [
-        ("AOKIUTAGE/UTAGEsDOL3.0", "AUfemale.model", "mod"),
-        ("AOKIUTAGE/UTAGEsDOL3.0", "AUmale.model", "mod"),
-        ("AOKIUTAGE/UTAGEsDOL3.0", "AUandrogynous.model", "mod"),
-    ]
-
-    for repo, asset_pattern, tag in test_cases:
-        print(f"\n--- {asset_pattern} ---")
-        print(f"Repo: {repo}")
-        print(f"Tag:  {tag}")
-
-        result = get_github_release_asset(
-            repo=repo,
-            asset_pattern=asset_pattern,
-            tag=tag,
+    @patch("lyra.utils.requests.get")
+    def test_selects_highest_matching_version(self, get):
+        get.return_value = self.response(
+            [
+                {
+                    "name": "AUfemale.model_v0.8.0.zip",
+                    "browser_download_url": "https://example.test/0.8.0.zip",
+                },
+                {
+                    "name": "AUfemale.model_v0.10.0.zip",
+                    "browser_download_url": "https://example.test/0.10.0.zip",
+                },
+                {
+                    "name": "AUmale.model_v9.0.0.zip",
+                    "browser_download_url": "https://example.test/other.zip",
+                },
+            ]
         )
 
-        if result:
-            print(f"Name:    {result.name}")
-            print(f"Version: {result.version}")
-            print(f"URL:     {result.url}")
-        else:
-            print("未找到匹配的资源")
+        result = get_github_release_asset(
+            "AOKIUTAGE/UTAGEsDOL3.0", "AUfemale.model", "mod"
+        )
 
-    print("\n" + "=" * 70)
-    print("测试完成")
-    print("=" * 70)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.version, "v0.10.0")
+        self.assertEqual(result.url, "https://example.test/0.10.0.zip")
+        get.return_value.raise_for_status.assert_called_once_with()
+
+    @patch("lyra.utils.requests.get")
+    def test_returns_none_without_a_matching_asset(self, get):
+        get.return_value = self.response([])
+
+        result = get_github_release_asset("owner/repo", "missing")
+
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
-    main()
+    unittest.main()

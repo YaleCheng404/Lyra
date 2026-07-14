@@ -22,6 +22,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -30,8 +31,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from lyra import __version__
 from lyra.paths import BuildPaths
-from lyra.version import LyraVersion, VersionRegistry
 from lyra.utils import setup_logging
+from lyra.version import LyraVersion, VersionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def cmd_prepare(args) -> int:
 
     下载游戏文件、额外 mod，生成 ZIP 基包和 APK 解包目录。
     """
-    from lyra.downloader import Downloader, GamePreparer
+    from lyra.downloader import Downloader
     from lyra.prepare import GamePreparer as FullPreparer
 
     setup_logging(args.verbose)
@@ -136,7 +137,7 @@ def cmd_build(args) -> int:
     pack_types = [args.pack_type] if args.pack_type else ["zip", "apk"]
 
     # 并行构建
-    success, fail = build_all_parallel(
+    _, fail = build_all_parallel(
         paths=paths,
         version=version,
         pack_types=pack_types,
@@ -246,33 +247,36 @@ def cmd_check(args) -> int:
         logger.error(f"获取汉化仓库版本失败: {e}")
         return 1
 
-    # 解析版本号，格式: v0.5.7.9-chs-5.1.0a
-    try:
-        origin_parts = origin_tag.split("-")
-        game_ver = origin_parts[0].lstrip("v")
-        chs_ver = origin_parts[2]
-    except IndexError:
+    # 解析并限制版本号，避免外部 tag 成为工作流脚本内容。
+    match = re.fullmatch(
+        r"v(?P<game>\d+(?:\.\d+){3})-chs-(?P<chs>\d+(?:\.\d+){2}[0-9A-Za-z]*)",
+        origin_tag,
+    )
+    if not match:
         logger.error(f"无法解析汉化仓库版本: {origin_tag}")
         return 1
+    game_ver, chs_ver = match["game"], match["chs"]
 
     # 获取本仓库最新 tag
     lyra_tag = ""
     lyra_game_ver = ""
     lyra_chs_ver = ""
     try:
-        mods_url = f"https://api.github.com/repos/{github_owner}/{github_repo}/releases/latest"
+        mods_url = (
+            f"https://api.github.com/repos/{github_owner}/{github_repo}/releases/latest"
+        )
         response = requests.get(mods_url, timeout=30)
         response.raise_for_status()
         lyra_tag = response.json().get("tag_name", "")
-        lyra_parts = lyra_tag.split("-")
-        lyra_game_ver = lyra_parts[0].lstrip("v")
-        lyra_chs_ver = lyra_parts[1]
+        lyra_version = LyraVersion.from_tag(lyra_tag)
+        lyra_game_ver = lyra_version.dol_ver
+        lyra_chs_ver = lyra_version.chs_ver
     except Exception as e:
         logger.warning(f"获取本仓库版本失败（可能是首次发布）: {e}")
 
     need_update = (game_ver != lyra_game_ver) or (chs_ver != lyra_chs_ver)
 
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     # UTC+8 时间
     tz = timezone(timedelta(hours=8))
@@ -291,7 +295,9 @@ def cmd_check(args) -> int:
     if need_update:
         logger.info("需要更新！")
         logger.info(f"  汉化仓库 ({source_repo}): {origin_tag}")
-        logger.info(f"  本仓库 ({github_owner}/{github_repo}): {lyra_tag or '(无发布)'}")
+        logger.info(
+            f"  本仓库 ({github_owner}/{github_repo}): {lyra_tag or '(无发布)'}"
+        )
     else:
         logger.info("当前已是最新版本")
 
@@ -395,7 +401,7 @@ def main():
     )
 
     # list 命令
-    list_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "list",
         help="列出所有 MOD 组合",
     )

@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "20:00"
+      timezone: Asia/Hong_Kong
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "20:00"
+      timezone: Asia/Hong_Kong
+    groups:
+      github-actions:
+        patterns:
+          - "*"

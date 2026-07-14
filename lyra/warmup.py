@@ -7,18 +7,19 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import ClassVar
 
+from .config_loader import ModloaderModConfig, get_config_loader, load_build_config
 from .paths import BuildPaths
-from .version import VersionInfo, VersionRegistry
-from .config_loader import load_build_config, get_config_loader, ModloaderModConfig
 from .utils import (
     download_file,
     extract_tar_gz,
-    safe_remove,
-    safe_move,
     get_gitgud_commit_hash,
     get_github_release_asset,
+    safe_move,
+    safe_remove,
 )
+from .version import VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class ResourceWarmer:
     """
 
     # DoL+ 图片包列表
-    DOLP_PACKS = {
+    DOLP_PACKS: ClassVar[dict[str, list[str]]] = {
         "besc": ["dolp", "b3s", "kaervek", "dolp_b3s"],
         "hikari": ["b3s_hikfem", "b3s_hikfemsubs"],
         "goose": ["dolp", "goosefem", "goosefemsubs"],

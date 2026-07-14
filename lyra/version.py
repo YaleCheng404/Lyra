@@ -6,6 +6,7 @@
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,12 +40,13 @@ class LyraVersion:
         Raises:
             ValueError: 如果tag格式不正确
         """
-        ver_str = tag[1:] if tag.startswith("v") else tag
-        parts = ver_str.split("-")
-        if len(parts) >= 3:
-            return cls(dol_ver=parts[0], chs_ver=parts[1], date=parts[2])
-        else:
+        match = re.fullmatch(
+            r"v?(?P<dol>\d+(?:\.\d+){3})-(?P<chs>\d+(?:\.\d+){2}[0-9A-Za-z]*)-(?P<date>\d{4})",
+            tag,
+        )
+        if not match:
             raise ValueError(f"无法从版本字符串中提取版本信息: {tag}")
+        return cls(dol_ver=match["dol"], chs_ver=match["chs"], date=match["date"])
 
     @property
     def tag(self) -> str:
@@ -148,7 +150,7 @@ class VersionRegistry:
             logger.warning(f"版本信息文件不存在: {path}")
             return cls()
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         versions = [VersionInfo.from_dict(item) for item in data]

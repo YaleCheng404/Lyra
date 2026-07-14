@@ -4,14 +4,13 @@ MOD组合计算模块
 根据配置文件中的规则计算有效的MOD组合，用于批量构建和生成下载页面。
 """
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
-import logging
 
 from .config_loader import (
-    Feature,
     CombinationsConfig,
+    Feature,
     get_config_loader,
 )
 
@@ -47,7 +46,7 @@ class ModCombination:
 class CombinationCalculator:
     """MOD组合计算器（配置驱动）"""
 
-    def __init__(self, config_dir: Optional[Path] = None):
+    def __init__(self, config_dir: Path | None = None):
         """
         初始化计算器
 
@@ -154,11 +153,7 @@ class CombinationCalculator:
         if not self._check_conflicts(value):
             return True
 
-        # 检查黑名单
-        if value in self.combinations_config.blacklist:
-            return True
-
-        return False
+        return value in self.combinations_config.blacklist
 
     def _get_display_name(self, code: int) -> str:
         """获取组合的显示名称"""
@@ -286,13 +281,13 @@ class CombinationCalculator:
         return "\n".join(lines)
 
 
-def get_default_combinations(config_dir: Optional[Path] = None) -> list[ModCombination]:
+def get_default_combinations(config_dir: Path | None = None) -> list[ModCombination]:
     """获取默认的MOD组合列表"""
     calculator = CombinationCalculator(config_dir)
     return calculator.calculate()
 
 
-def get_default_build_codes(config_dir: Optional[Path] = None) -> list[str]:
+def get_default_build_codes(config_dir: Path | None = None) -> list[str]:
     """获取默认的构建code列表"""
     calculator = CombinationCalculator(config_dir)
     return calculator.get_build_codes()

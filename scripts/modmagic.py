@@ -1,11 +1,11 @@
+import base64
 import json
 import re
 import sys
-import base64
-from pathlib import Path
-from typing import List, Literal, Dict
 import zipfile
 from io import BytesIO
+from pathlib import Path
+from typing import Literal
 
 
 def load_file_as_base64(file_path: str) -> str:
@@ -14,7 +14,7 @@ def load_file_as_base64(file_path: str) -> str:
         return base64.b64encode(f.read()).decode("utf-8")
 
 
-def extract_boot_json_from_base64_zip(base64_data: str) -> Dict:
+def extract_boot_json_from_base64_zip(base64_data: str) -> dict:
     """从 base64 编码的 zip 中提取 boot.json 信息"""
     try:
         # 解码 base64
@@ -47,7 +47,7 @@ def extract_boot_json_from_base64_zip(base64_data: str) -> Dict:
         return {"name": "Unknown", "version": "Unknown", "error": str(e)}
 
 
-def extract_mod_list(html_content: str) -> List[str]:
+def extract_mod_list(html_content: str) -> list[str]:
     """从 HTML 文件中提取 modDataValueZipList 数组"""
     pattern = r"window\.modDataValueZipList\s*=\s*(\[.*?\]);"
     match = re.search(pattern, html_content, re.DOTALL)
@@ -60,16 +60,16 @@ def extract_mod_list(html_content: str) -> List[str]:
         mod_list = json.loads(match.group(1))
         return mod_list
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse modDataValueZipList: {e}")
+        raise ValueError(f"Failed to parse modDataValueZipList: {e}") from e
 
 
 def add_mods_to_html(
-    html_mod_path: str, mod_paths: List[str], position: Literal["start", "end"] = "end"
+    html_mod_path: str, mod_paths: list[str], position: Literal["start", "end"] = "end"
 ):
     """向已有的 .mod.html 文件中添加新 Mod"""
 
     # 读取 HTML 文件
-    with open(html_mod_path, "r", encoding="utf-8") as f:
+    with open(html_mod_path, encoding="utf-8") as f:
         html_content = f.read()
 
     # 提取现有的 modDataValueZipList
@@ -106,11 +106,11 @@ def add_mods_to_html(
     print(f"Successfully added {len(mod_paths)} mod(s) to {html_mod_path}")
 
 
-def reorder_mods(html_mod_path: str, new_order: List[int]):
+def reorder_mods(html_mod_path: str, new_order: list[int]):
     """重新排列 HTML 文件中的 Mod 顺序"""
 
     # 读取 HTML 文件
-    with open(html_mod_path, "r", encoding="utf-8") as f:
+    with open(html_mod_path, encoding="utf-8") as f:
         html_content = f.read()
 
     # 提取现有的 modDataValueZipList
@@ -141,11 +141,11 @@ def reorder_mods(html_mod_path: str, new_order: List[int]):
     print(f"New order: {new_order}")
 
 
-def remove_mods(html_mod_path: str, indices: List[int]):
+def remove_mods(html_mod_path: str, indices: list[int]):
     """删除指定索引的 Mod"""
 
     # 读取 HTML 文件
-    with open(html_mod_path, "r", encoding="utf-8") as f:
+    with open(html_mod_path, encoding="utf-8") as f:
         html_content = f.read()
 
     # 提取现有的 modDataValueZipList
@@ -177,7 +177,7 @@ def replace_mod_by_id(html_mod_path: str, mod_id: int, mod_path: str):
     """覆盖指定索引位置的 Mod"""
 
     # 读取 HTML 文件
-    with open(html_mod_path, "r", encoding="utf-8") as f:
+    with open(html_mod_path, encoding="utf-8") as f:
         html_content = f.read()
 
     # 提取现有的 modDataValueZipList
@@ -227,7 +227,7 @@ def list_mods(html_mod_path: str):
     """列出 HTML 文件中的所有 Mod（显示详细信息）"""
 
     # 读取 HTML 文件
-    with open(html_mod_path, "r", encoding="utf-8") as f:
+    with open(html_mod_path, encoding="utf-8") as f:
         html_content = f.read()
 
     # 提取现有的 modDataValueZipList

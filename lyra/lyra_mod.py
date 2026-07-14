@@ -8,7 +8,6 @@ import json
 import logging
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 from .version import LyraVersion, VersionInfo
 
@@ -17,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 def build_lyra_mod(
     output_path: Path,
-    version: Optional[LyraVersion] = None,
-    version_info: Optional[list[VersionInfo]] = None,
+    version: LyraVersion | None = None,
+    version_info: list[VersionInfo] | None = None,
     mod_suffix: str = "",
 ) -> Path:
     """
@@ -98,7 +97,6 @@ def _generate_readme(
             ]
         )
 
-        for v in version_info:
-            lines.append(f"| {v.name} | `{v.version}` |")
+        lines.extend(f"| {v.name} | `{v.version}` |" for v in version_info)
 
     return "\n".join(lines)

@@ -4,23 +4,15 @@ Markdown 下载页面生成模块
 生成带有下载链接的 Markdown 表格。
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional
-from datetime import datetime, timezone
 import logging
 import os
-
-try:
-    import pytablewriter
-
-    HAS_TABLEWRITER = True
-except ImportError:
-    HAS_TABLEWRITER = False
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 
 from .combo import CombinationCalculator, ModCombination
-from .config_loader import load_build_config
 from .config import ModCode
+from .config_loader import load_build_config
 from .version import VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
@@ -50,12 +42,12 @@ class DownloadPageConfig:
     github_repo: str = ""
     include_zip: bool = True
     include_apk: bool = True
-    output_path: Optional[Path] = None
+    output_path: Path | None = None
     mirror_base: str = "https://ghfast.top/https://github.com"
     base_game_version: str = ""
     chs_version: str = ""
     date_suffix: str = ""
-    versions_file: Optional[Path] = None  # 版本信息文件路径
+    versions_file: Path | None = None  # 版本信息文件路径
     version_info: list[VersionInfo] = field(default_factory=list)  # 版本信息列表
 
     def __post_init__(self):
@@ -80,16 +72,17 @@ class DownloadPageConfig:
             )
 
         # 解析版本号，例如 v0.5.7.9-5.0.2a-0112
-        if not self.base_game_version or not self.chs_version or not self.date_suffix:
-            if self.version:
-                parts = self.version.lstrip("v").split("-")
-                if len(parts) >= 3:
-                    if not self.base_game_version:
-                        self.base_game_version = parts[0]
-                    if not self.chs_version:
-                        self.chs_version = parts[1]
-                    if not self.date_suffix:
-                        self.date_suffix = parts[2]
+        if self.version and (
+            not self.base_game_version or not self.chs_version or not self.date_suffix
+        ):
+            parts = self.version.lstrip("v").split("-")
+            if len(parts) >= 3:
+                if not self.base_game_version:
+                    self.base_game_version = parts[0]
+                if not self.chs_version:
+                    self.chs_version = parts[1]
+                if not self.date_suffix:
+                    self.date_suffix = parts[2]
 
         # 如果指定了版本文件，加载版本信息
         if self.versions_file and not self.version_info:
@@ -142,15 +135,10 @@ class DownloadPageGenerator:
     def __init__(
         self,
         config: DownloadPageConfig,
-        config_dir: Optional[Path] = None,
+        config_dir: Path | None = None,
     ):
         self.config = config
         self.calculator = CombinationCalculator(config_dir)
-        self.config.calculator = self.calculator
-
-    def _format_link(self, url: str, text: str) -> str:
-        """格式化Markdown链接"""
-        return f"[{text}]({url})"
 
     def _generate_row(
         self,
@@ -190,29 +178,8 @@ class DownloadPageGenerator:
 
         return row
 
-    def generate_table_pytablewriter(self, combinations: list[ModCombination]) -> str:
-        """使用 pytablewriter 生成表格"""
-        if not HAS_TABLEWRITER:
-            raise ImportError("pytablewriter is required for this function")
-
-        headers = ["版本选择"]
-        if self.config.include_zip:
-            headers.append("ZIP")
-        if self.config.include_apk:
-            headers.append("APK")
-
-        matrix = [self._generate_row(c) for c in combinations]
-
-        writer = pytablewriter.MarkdownTableWriter(
-            headers=headers,
-            value_matrix=matrix,
-            margin=0,
-        )
-
-        return writer.dumps()
-
-    def generate_table_simple(self, combinations: list[ModCombination]) -> str:
-        """简单表格生成（无需外部依赖）"""
+    def generate_table(self, combinations: list[ModCombination]) -> str:
+        """生成 Markdown 下载表格。"""
         headers = ["版本选择"]
         if self.config.include_zip:
             headers.append("ZIP")
@@ -262,8 +229,6 @@ class DownloadPageGenerator:
 
         # 合并所有组合
         all_combinations = polyfill_besc + recommended + base + others
-        # 用于组合对照的组合（不包含 polyfill）
-        non_polyfill_combinations = [c for c in combinations if not c.is_polyfill]
 
         # 生成当前时间的 ISO 8601 格式字符串
         current_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
@@ -310,11 +275,7 @@ class DownloadPageGenerator:
             "",
         ]
 
-        # 生成统一表格
-        if HAS_TABLEWRITER:
-            lines.append(self.generate_table_pytablewriter(all_combinations))
-        else:
-            lines.append(self.generate_table_simple(all_combinations))
+        lines.append(self.generate_table(all_combinations))
 
         # 添加版本信息表格
         if self.config.version_info:
@@ -383,7 +344,7 @@ class DownloadPageGenerator:
 
         return lines
 
-    def save(self, path: Optional[Path] = None):
+    def save(self, path: Path | None = None):
         """
         保存到文件
 
@@ -402,10 +363,10 @@ class DownloadPageGenerator:
 
 def generate_download_page(
     version: str,
-    output_path: Optional[Path] = None,
+    output_path: Path | None = None,
     github_owner: str = "",
     github_repo: str = "",
-    versions_file: Optional[Path] = None,
+    versions_file: Path | None = None,
 ) -> str:
     """
     便捷函数：生成下载页面

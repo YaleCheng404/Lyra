@@ -6,14 +6,13 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import requests
 
-from .paths import BuildPaths
-from .version import LyraVersion, VersionInfo, VersionRegistry
 from .config_loader import load_build_config
+from .paths import BuildPaths
 from .utils import download_file, extract_zip
+from .version import LyraVersion, VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ class Downloader:
         self.registry = VersionRegistry()
 
     def download_from_chs_repo(
-        self, version: Optional[LyraVersion] = None
+        self, version: LyraVersion | None = None
     ) -> dict[str, Path]:
         """
         从汉化仓库下载资源文件
@@ -81,9 +80,11 @@ class Downloader:
             ),
             (
                 "zip",
-                lambda name: name.endswith(".zip")
-                and "ModLoader" in name
-                and "polyfill" not in name.lower(),
+                lambda name: (
+                    name.endswith(".zip")
+                    and "ModLoader" in name
+                    and "polyfill" not in name.lower()
+                ),
             ),
             (
                 "polyfill_zip",
@@ -182,29 +183,31 @@ class Downloader:
 
     def download_apktool(self) -> Path:
         """下载apktool"""
-        from .config_loader import load_build_config
-
         config = load_build_config()
 
         dest_path = self.paths.apktool_path
-        if not dest_path.exists():
-            download_file(config.apktool_url, dest_path)
-            logger.info(f"apktool 下载完成: {dest_path}")
+        download_file(
+            config.apktool_url,
+            dest_path,
+            expected_sha256=config.apktool_sha256,
+        )
+        logger.info(f"apktool 已验证: {dest_path}")
         return dest_path
 
     def download_apksign(self) -> Path:
         """下载uber-apk-signer"""
-        from .config_loader import load_build_config
-
         config = load_build_config()
 
         dest_path = self.paths.apksign_path
-        if not dest_path.exists():
-            download_file(config.uber_apk_signer_url, dest_path)
-            logger.info(f"uber-apk-signer 下载完成: {dest_path}")
+        download_file(
+            config.uber_apk_signer_url,
+            dest_path,
+            expected_sha256=config.uber_apk_signer_sha256,
+        )
+        logger.info(f"uber-apk-signer 已验证: {dest_path}")
         return dest_path
 
-    def _get_github_release(self, repo: str, tag: str) -> Optional[dict]:
+    def _get_github_release(self, repo: str, tag: str) -> dict | None:
         """
         获取GitHub release信息
 
@@ -249,7 +252,7 @@ class GamePreparer:
 
     def prepare_sources(
         self, downloaded_files: dict[str, Path]
-    ) -> tuple[Optional[Path], Optional[Path]]:
+    ) -> tuple[Path | None, Path | None]:
         """
         准备游戏源文件：解压并合并资源
 

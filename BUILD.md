@@ -204,8 +204,8 @@ mods = [1024, 2048, 4096]  # AU三个变体互斥
 ### 系统要求
 
 - **操作系统**：Linux / macOS / Windows (WSL)
-- **Python**：3.8+
-- **Java**：17+（APK 构建需要）
+- **Python**：3.14
+- **Java**：21+（APK 构建需要）
 
 ### 安装步骤
 
@@ -1148,31 +1148,39 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: '3.10'
+          python-version-file: .python-version
       
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt
       
       - name: Prepare resources
-        run: python main.py prepare --tag ${{ github.ref_name }}
+        run: python main.py prepare --tag "$RELEASE_TAG"
       
       - name: Warmup assets
         run: python main.py warmup
       
       - name: Build all
-        run: python main.py build --tag ${{ github.ref_name }} -j 4
+        run: python main.py build --tag "$RELEASE_TAG" -j 4
       
       - name: Generate page
-        run: python main.py page --tag ${{ github.ref_name }} -o index.md
+        run: |
+          python main.py page \
+            --version "$RELEASE_TAG" \
+            --github-owner "$GITHUB_REPOSITORY_OWNER" \
+            --github-repo "${GITHUB_REPOSITORY#*/}" \
+            --versions-file base/versions.json \
+            --output "output/$RELEASE_TAG.md"
       
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: releases
           path: output/*
@@ -1182,7 +1190,7 @@ jobs:
 
 ```yaml
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: output/*
           body_path: index.md
@@ -1267,13 +1275,13 @@ java -version
 
 # Ubuntu/Debian 安装
 sudo apt update
-sudo apt install openjdk-17-jdk
+sudo apt install openjdk-21-jdk
 
 # macOS 安装
-brew install openjdk@17
+brew install openjdk@21
 
 # 配置环境变量（如果需要）
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 export PATH=$JAVA_HOME/bin:$PATH
 ```
 
@@ -1336,7 +1344,7 @@ jarsigner error: java.util.zip.ZipException
 rm workspace/uber-apk-signer.jar
 python main.py prepare --tag TAG
 
-# 检查 Java 版本（需要 17+）
+# 检查 Java 版本（需要 21+）
 java -version
 
 # 手动测试签名
@@ -1595,17 +1603,17 @@ print(f"Output: {builder.output_path}")
 
 ```bash
 # Python 版本
-python --version  # >= 3.8
+python --version  # 3.14
 
 # Java 版本（APK 构建需要）
-java -version     # >= 17
+java -version     # >= 21
 
 # 网络连接
 ping -c 3 github.com
 ping -c 3 gitgud.io
 
 # Python 依赖
-pip list | grep -E '(requests|tomli|pytablewriter)'
+pip list | grep -E '(requests|tqdm|packaging)'
 ```
 
 ---

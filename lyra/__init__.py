@@ -21,33 +21,24 @@ __version__ = "2.0.0"
 __author__ = "DoL-Lyra"
 
 # 路径管理
-from .paths import BuildPaths
-
-# 版本信息
-from .version import (
-    LyraVersion,
-    VersionInfo,
-    VersionRegistry,
-)
-
-# 配置加载
-from .config_loader import (
-    ConfigLoader,
-    Feature,
-    CombinationsConfig,
-    BuildConfiguration,
-    get_config_loader,
-    load_features,
-    load_combinations_config,
-    load_build_config,
-)
-
 # 组合计算
 from .combo import (
     CombinationCalculator,
     ModCombination,
-    get_default_combinations,
     get_default_build_codes,
+    get_default_combinations,
+)
+
+# 配置加载
+from .config_loader import (
+    BuildConfiguration,
+    CombinationsConfig,
+    ConfigLoader,
+    Feature,
+    get_config_loader,
+    load_build_config,
+    load_combinations_config,
+    load_features,
 )
 
 # 页面生成
@@ -55,6 +46,14 @@ from .gen_page import (
     DownloadPageConfig,
     DownloadPageGenerator,
     generate_download_page,
+)
+from .paths import BuildPaths
+
+# 版本信息
+from .version import (
+    LyraVersion,
+    VersionInfo,
+    VersionRegistry,
 )
 
 __all__ = [

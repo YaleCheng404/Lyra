@@ -8,18 +8,17 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
-from .paths import BuildPaths
-from .version import VersionRegistry
 from .config_loader import load_build_config
+from .paths import BuildPaths
 from .utils import (
-    run_command,
-    extract_zip,
-    create_zip,
     copy_directory,
+    create_zip,
+    extract_zip,
+    run_command,
     safe_remove,
 )
+from .version import VersionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +205,9 @@ class ModInjector:
         existing_list = json.loads(match.group(1))
 
         if mod_id < 0 or mod_id >= len(existing_list):
-            logger.error(f"无效的 mod ID: {mod_id}，有效范围: 0-{len(existing_list)-1}")
+            logger.error(
+                f"无效的 mod ID: {mod_id}，有效范围: 0-{len(existing_list) - 1}"
+            )
             return
 
         # 加载新的 mod 文件
@@ -327,7 +328,7 @@ class GamePreparer:
     def _process_zip_version(
         self,
         zip_path: Path,
-        image_pack_path: Optional[Path],
+        image_pack_path: Path | None,
         extra_mods: dict[str, Path],
         polyfill: bool,
     ):
@@ -377,7 +378,7 @@ class GamePreparer:
     def _process_apk_version(
         self,
         apk_path: Path,
-        image_pack_path: Optional[Path],
+        image_pack_path: Path | None,
         extra_mods: dict[str, Path],
         polyfill: bool,
     ):
