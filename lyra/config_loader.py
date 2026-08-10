@@ -207,7 +207,6 @@ class BuildConfiguration:
         # 解析基础 mod 配置
         base_mods = [BaseModConfig.from_dict(m) for m in data.get("base_mods", [])]
 
-        dolp_base = urls["dolp_base"]
         chs_repo = urls.get(
             "chs_repo", "Eltirosto/Degrees-of-Lewdity-Chinese-Localization"
         )

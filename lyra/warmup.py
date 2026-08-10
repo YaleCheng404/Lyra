@@ -12,6 +12,7 @@ from typing import ClassVar
 from .config_loader import ModloaderModConfig, get_config_loader, load_build_config
 from .paths import BuildPaths
 from .utils import (
+    copy_directory,
     download_file,
     extract_tar_gz,
     get_gitgud_commit_hash,
@@ -143,7 +144,7 @@ class ResourceWarmer:
         for pack in self.DOLP_PACKS["besc"]:
             src_dir = self.paths.temp_dir / f"dolp-{pack}" / "img"
             if src_dir.exists():
-                self._copy_directory(src_dir, dest_dir)
+                copy_directory(src_dir, dest_dir)
 
         # 处理大小写问题
         self._fix_besc_case_issues(dest_dir)
@@ -162,7 +163,7 @@ class ResourceWarmer:
         for pack in self.DOLP_PACKS["hikari"]:
             src_dir = self.paths.temp_dir / f"dolp-{pack}" / "img"
             if src_dir.exists():
-                self._copy_directory(src_dir, dest_dir)
+                copy_directory(src_dir, dest_dir)
 
         # 删除问题文件
         safe_remove(dest_dir / "hair" / "fringe" / "Messy curls")
@@ -182,7 +183,7 @@ class ResourceWarmer:
         for pack in self.DOLP_PACKS["goose"]:
             src_dir = self.paths.temp_dir / f"dolp-{pack}" / "img"
             if src_dir.exists():
-                self._copy_directory(src_dir, dest_dir)
+                copy_directory(src_dir, dest_dir)
 
         logger.info("  Goose: 处理完成")
 
@@ -199,7 +200,7 @@ class ResourceWarmer:
         for pack in self.DOLP_PACKS["ucb"]:
             src_dir = self.paths.temp_dir / f"dolp-{pack}" / "img"
             if src_dir.exists():
-                self._copy_directory(src_dir, dest_dir)
+                copy_directory(src_dir, dest_dir)
 
         # 删除问题文件
         safe_remove(
@@ -279,11 +280,3 @@ class ResourceWarmer:
         download_file(asset.url, dest_path, quiet=True)
         logger.info(f"  {display_name}: 下载完成 ({asset.version})")
 
-    def _copy_directory(self, src: Path, dest: Path):
-        """复制目录内容"""
-        for item in src.rglob("*"):
-            if item.is_file():
-                rel_path = item.relative_to(src)
-                dest_path = dest / rel_path
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item, dest_path)

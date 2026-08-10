@@ -83,9 +83,7 @@ class ApkProcessor:
         # 按文件分组替换规则
         file_replacements: dict[str, list] = {}
         for replacement in self.config.apk_replacements:
-            if replacement.file not in file_replacements:
-                file_replacements[replacement.file] = []
-            file_replacements[replacement.file].append(replacement)
+            file_replacements.setdefault(replacement.file, []).append(replacement)
 
         # 应用替换规则
         for file_path, replacements in file_replacements.items():
@@ -442,14 +440,14 @@ class GamePreparer:
         extract_zip(image_pack_path, temp_dir)
 
         # 查找 img 目录
-        img_src = None
-        if (temp_dir / "img").exists():
-            img_src = temp_dir / "img"
-        else:
-            for subdir in temp_dir.iterdir():
-                if subdir.is_dir() and (subdir / "img").exists():
-                    img_src = subdir / "img"
-                    break
+        img_src = temp_dir / "img" if (temp_dir / "img").exists() else next(
+            (
+                d / "img"
+                for d in temp_dir.iterdir()
+                if d.is_dir() and (d / "img").exists()
+            ),
+            None,
+        )
 
         if img_src:
             img_dest = target_dir / "img"

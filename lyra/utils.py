@@ -6,6 +6,7 @@
 
 import hashlib
 import logging
+import re
 import shutil
 import subprocess
 import tarfile
@@ -14,8 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 import requests
-from packaging.version import Version
-from packaging.version import parse as parse_version
+from packaging.version import Version, parse as parse_version
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -267,25 +267,6 @@ def run_command(
     )
 
 
-def find_game_file(directory: Path, include_polyfill: bool = False) -> Path | None:
-    """
-    查找游戏文件
-
-    Args:
-        directory: 搜索目录
-        include_polyfill: 是否查找polyfill版本
-
-    Returns:
-        找到的文件路径，未找到返回None
-    """
-    for f in directory.iterdir():
-        if f.is_file() and f.name.startswith("DoL"):
-            has_polyfill = "polyfill" in f.name
-            if include_polyfill == has_polyfill:
-                return f
-    return None
-
-
 def get_file_hash(path: Path, algorithm: str = "md5") -> str:
     """
     计算文件哈希值
@@ -302,33 +283,6 @@ def get_file_hash(path: Path, algorithm: str = "md5") -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             hasher.update(chunk)
     return hasher.hexdigest()
-
-
-def parse_version_from_filename(filename: str) -> tuple[str, str]:
-    """
-    从文件名解析版本号
-
-    Args:
-        filename: 文件名，如 "DoL-ModLoader-1.2.3-chs-4.5.6.zip"
-
-    Returns:
-        (dol_version, chs_version) 元组
-    """
-    basename = Path(filename).stem
-    parts = basename.split("-")
-
-    # 尝试提取版本号
-    dol_ver = ""
-    chs_ver = ""
-
-    for part in parts:
-        if part.startswith("v") or part[:1].isdigit():
-            if not dol_ver:
-                dol_ver = part
-            elif not chs_ver:
-                chs_ver = part
-
-    return dol_ver, chs_ver
 
 
 @dataclass
@@ -426,19 +380,10 @@ def _extract_version_from_filename(filename: str) -> str:
     Returns:
         版本号字符串，未找到返回 "unknown"
     """
-    import re
-
-    # 匹配 v前缀的版本号：v0.8.0, v1.2.3-beta 等
-    match = re.search(r"[_-](v\d+\.\d+\.\d+[^.]*)\.zip", filename, re.IGNORECASE)
-    if match:
-        return match.group(1)
-
-    # 匹配无v前缀的版本号：1.2.3 等
-    match = re.search(r"[_-](\d+\.\d+\.\d+[^.]*)\.zip", filename, re.IGNORECASE)
-    if match:
-        return match.group(1)
-
-    return "unknown"
+    match = re.search(
+        r"[_-](v?\d+\.\d+\.\d+[^.]*)\.zip", filename, re.IGNORECASE
+    )
+    return match.group(1) if match else "unknown"
 
 
 def get_gitgud_commit_hash(repo: str, branch: str = "master") -> str | None:
