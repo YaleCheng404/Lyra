@@ -13,23 +13,23 @@ logger = logging.getLogger(__name__)
 # 上游 tag 格式: v{game}-chs-{chs}，例如 v0.5.10.12-chs-1.0.8a
 _ORIGIN_TAG_RE = re.compile(r"v(?P<game>\d+(?:\.\d+){3})-chs-(?P<chs>\d+(?:\.\d+){2}[0-9A-Za-z]*)")
 
-def check_chs_update(source_repo, github_owner, github_repo, session=None):
+def check_chs_update(source_repo, github_owner, github_repo, get=None):
     """检查汉化仓库是否有新版本。
 
     Args:
         source_repo: 上游汉化仓库，格式 owner/repo
         github_owner: 本仓库 owner
         github_repo: 本仓库名
-        session: requests.Session，便于测试注入
+        get: 可调用对象，默认 requests.get，便于测试注入
 
     Returns:
         检查结果字典，包含 need_update/origin_tag/game_ver/chs_ver/lyra_*/new_tag
     """
-    session = session or requests.Session()
+    get = get or requests.get
 
     # 获取汉化仓库最新 release
     url = f"https://api.github.com/repos/{source_repo}/releases/latest"
-    response = session.get(url, timeout=30)
+    response = get(url, timeout=30)
     response.raise_for_status()
     origin_tag = response.json().get("tag_name", "")
 
@@ -45,7 +45,7 @@ def check_chs_update(source_repo, github_owner, github_repo, session=None):
     lyra_chs_ver = ""
     try:
         mods_url = f"https://api.github.com/repos/{github_owner}/{github_repo}/releases/latest"
-        response = session.get(mods_url, timeout=30)
+        response = get(mods_url, timeout=30)
         response.raise_for_status()
         lyra_tag = response.json().get("tag_name", "")
         lyra_version = LyraVersion.from_tag(lyra_tag)
