@@ -22,7 +22,6 @@ import argparse
 import json
 import logging
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -218,9 +217,8 @@ def cmd_check(args) -> int:
     """
     检查是否需要更新
     """
-    import requests
-
     from lyra.config_loader import load_build_config
+    from lyra.updater import check_chs_update
 
     setup_logging(args.verbose)
 
@@ -236,77 +234,27 @@ def cmd_check(args) -> int:
         logger.error("无法确定当前 GitHub 仓库，请传入 --github-owner 和 --github-repo")
         return 1
 
-    # 获取汉化仓库最新 release
-    url = f"https://api.github.com/repos/{source_repo}/releases/latest"
-
     try:
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        origin_tag = response.json().get("tag_name", "")
+        result = check_chs_update(source_repo, github_owner, github_repo)
     except Exception as e:
-        logger.error(f"获取汉化仓库版本失败: {e}")
+        logger.error(f"检查更新失败: {e}")
         return 1
 
-    # 解析并限制版本号，避免外部 tag 成为工作流脚本内容。
-    match = re.fullmatch(
-        r"v(?P<game>\d+(?:\.\d+){3})-chs-(?P<chs>\d+(?:\.\d+){2}[0-9A-Za-z]*)",
-        origin_tag,
-    )
-    if not match:
-        logger.error(f"无法解析汉化仓库版本: {origin_tag}")
-        return 1
-    game_ver, chs_ver = match["game"], match["chs"]
-
-    # 获取本仓库最新 tag
-    lyra_tag = ""
-    lyra_game_ver = ""
-    lyra_chs_ver = ""
-    try:
-        mods_url = (
-            f"https://api.github.com/repos/{github_owner}/{github_repo}/releases/latest"
-        )
-        response = requests.get(mods_url, timeout=30)
-        response.raise_for_status()
-        lyra_tag = response.json().get("tag_name", "")
-        lyra_version = LyraVersion.from_tag(lyra_tag)
-        lyra_game_ver = lyra_version.dol_ver
-        lyra_chs_ver = lyra_version.chs_ver
-    except Exception as e:
-        logger.warning(f"获取本仓库版本失败（可能是首次发布）: {e}")
-
-    need_update = (game_ver != lyra_game_ver) or (chs_ver != lyra_chs_ver)
-
-    from datetime import datetime, timedelta, timezone
-
-    # UTC+8 时间
-    tz = timezone(timedelta(hours=8))
-    date_str = datetime.now(tz).strftime("%m%d")
-
-    result = {
-        "need_update": need_update,
-        "origin_tag": origin_tag,
-        "game_ver": game_ver,
-        "chs_ver": chs_ver,
-        "lyra_game_ver": lyra_game_ver,
-        "lyra_chs_ver": lyra_chs_ver,
-        "new_tag": f"v{game_ver}-{chs_ver}-{date_str}",
-    }
-
-    if need_update:
+    if result["need_update"]:
         logger.info("需要更新！")
-        logger.info(f"  汉化仓库 ({source_repo}): {origin_tag}")
+        logger.info(f"  汉化仓库 ({source_repo}): {result['origin_tag']}")
         logger.info(
-            f"  本仓库 ({github_owner}/{github_repo}): {lyra_tag or '(无发布)'}"
+            f"  本仓库 ({github_owner}/{github_repo}): {result['lyra_tag'] or '(无发布)'}"
         )
     else:
         logger.info("当前已是最新版本")
 
     if args.github_output:
         with open(args.github_output, "a") as f:
-            f.write(f"need_update={'true' if need_update else 'false'}\n")
-            f.write(f"origin_tag={origin_tag}\n")
-            f.write(f"game_ver={game_ver}\n")
-            f.write(f"chs_ver={chs_ver}\n")
+            f.write(f"need_update={'true' if result['need_update'] else 'false'}\n")
+            f.write(f"origin_tag={result['origin_tag']}\n")
+            f.write(f"game_ver={result['game_ver']}\n")
+            f.write(f"chs_ver={result['chs_ver']}\n")
             f.write(f"new_tag={result['new_tag']}\n")
     else:
         print(json.dumps(result))
