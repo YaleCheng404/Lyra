@@ -14,7 +14,7 @@
 - 发布文件包含完整游戏和 Mod，请勿将整合包 ZIP 作为 ModLoader 旁加载包导入。
 - 汉化、作弊、CSD、秋枫白桦框架、枯木逢春及音频、默示录：归途之书、极致动态 Dynamicest 已内置，可在 ModLoader 中启用或禁用。旁加载其他汉化或图片包可能覆盖内置内容。
 
-文件名格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。保留 BESC、Hikari、UCB 和 AU-F 组合，下载页显示对应资源版本和来源。
+文件名格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。提供 BESC、Hikari、UCB 和 AU-F 组合，下载页显示对应资源版本和来源。
 
 在线版由 **Deploy Online** workflow 部署到本仓库 `online` 分支，使用 BESC、作弊和 CSD 组合，包含普通与兼容模式。
 

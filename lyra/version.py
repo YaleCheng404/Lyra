@@ -3,8 +3,11 @@
 import json
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from .config import ModCode
 
 logger = logging.getLogger(__name__)
 
@@ -51,25 +54,6 @@ class VersionInfo:
             return f"{self.name}: {self.version}"
         return f"{self.name}: (no version)"
 
-    def to_dict(self) -> dict:
-        """转换为字典"""
-        return {
-            "name": self.name,
-            "version": self.version,
-            "source": self.source,
-            "filename": self.filename,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "VersionInfo":
-        """从字典创建"""
-        return cls(
-            name=data.get("name", ""),
-            version=data.get("version", ""),
-            source=data.get("source", ""),
-            filename=data.get("filename", ""),
-        )
-
 
 @dataclass
 class VersionRegistry:
@@ -96,7 +80,7 @@ class VersionRegistry:
 
     def save(self, path: Path):
         """保存版本信息到JSON文件。"""
-        data = [v.to_dict() for v in self.versions]
+        data = [asdict(v) for v in self.versions]
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -112,7 +96,7 @@ class VersionRegistry:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
-        versions = [VersionInfo.from_dict(item) for item in data]
+        versions = [VersionInfo(**item) for item in data]
         return cls(versions=versions)
 
     def print_summary(self):
@@ -128,3 +112,23 @@ class VersionRegistry:
 
     def __iter__(self):
         return iter(self.versions)
+
+
+def package_filename(
+    version: LyraVersion | None,
+    mod_code: int,
+    pack_type: str,
+    is_polyfill: bool = False,
+) -> str:
+    """构建、下载页和发布校验使用相同的产物命名规则。"""
+    if version is None:
+        date = datetime.now(timezone(timedelta(hours=8))).strftime("%m%d")
+        version = LyraVersion("unknown", "unknown", date)
+    parts = [f"DoL-{version.dol_ver}-Lyra-{version.chs_ver}"]
+    if is_polyfill:
+        parts.append("polyfill")
+    suffix = ModCode(mod_code).get_suffix()
+    if suffix:
+        parts.append(suffix)
+    parts.append(version.date)
+    return f"{'-'.join(parts)}.{pack_type}"

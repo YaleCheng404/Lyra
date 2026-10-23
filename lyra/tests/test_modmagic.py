@@ -10,9 +10,8 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from lyra.build import BuildTask, ZipBuilder
+from lyra.build import BuildTask, PackageBuilder
 from lyra.paths import BuildPaths
-from lyra.prepare import ModInjector
 from lyra.utils import create_zip
 from scripts import modmagic
 
@@ -77,7 +76,7 @@ class ModMagicTests(unittest.TestCase):
                 self.html.write_text(content, encoding="utf-8")
                 original = self.html.read_bytes()
                 with self.assertRaises(ValueError):
-                    ModInjector().add_mods(self.html, [self.mod])
+                    modmagic.add_mods_to_html(self.html, [self.mod])
                 self.assertEqual(self.html.read_bytes(), original)
 
     def test_list_reports_boot_metadata(self):
@@ -104,7 +103,7 @@ class ModMagicTests(unittest.TestCase):
         source.mkdir()
         (source / "game.html").write_text("no mod array", encoding="utf-8")
         create_zip(source, paths.get_base_zip())
-        result = ZipBuilder(BuildTask("zip", 2, paths=paths)).build()
+        result = PackageBuilder(BuildTask("zip", 2, paths=paths)).build()
         self.assertFalse(result.success)
         self.assertIn("modDataValueZipList", result.error)
         self.assertEqual(list(paths.output_dir.iterdir()), [])

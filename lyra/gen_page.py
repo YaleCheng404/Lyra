@@ -6,9 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .combo import CombinationCalculator, ModCombination
-from .config import ModCode
 from .config_loader import load_build_config
-from .version import VersionInfo, VersionRegistry
+from .version import LyraVersion, VersionInfo, VersionRegistry, package_filename
 
 
 def _github_repo_from_env() -> tuple[str, str]:
@@ -90,17 +89,10 @@ class DownloadPageConfig:
 
     def get_filename(self, mod_code: int, ext: str, is_polyfill: bool = False) -> str:
         """生成文件名。"""
-        # 构建前缀
-        prefix = f"DoL-{self.base_game_version}-Lyra-{self.chs_version}"
-        if is_polyfill:
-            prefix += "-polyfill"
-
-        # 使用 ModCode.get_suffix() 生成 MOD 后缀，确保与构建时一致
-        mod_suffix = ModCode(mod_code).get_suffix()
-        if mod_suffix:
-            prefix += f"-{mod_suffix}"
-
-        return f"{prefix}-{self.date_suffix}.{ext}"
+        version = LyraVersion(
+            self.base_game_version, self.chs_version, self.date_suffix
+        )
+        return package_filename(version, mod_code, ext, is_polyfill)
 
 
 class DownloadPageGenerator:
@@ -119,15 +111,9 @@ class DownloadPageGenerator:
         combination: ModCombination,
     ) -> list[str]:
         """生成表格行"""
-        # 显示名称
         display_name = combination.display_name
 
-        # polyfill 版本的特殊处理
-        if combination.is_polyfill:
-            # 移除原有的 (兼容版) 后缀（如果有）
-            display_name = display_name.replace("(兼容版)", "").strip()
-            display_name = f"{display_name}+CSD(兼容版)"
-        elif combination.is_recommended:
+        if combination.is_recommended and not combination.is_polyfill:
             display_name = f"***{display_name}(推荐)***"
 
         row = [display_name]

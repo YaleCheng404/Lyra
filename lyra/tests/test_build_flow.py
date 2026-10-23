@@ -6,7 +6,7 @@ from concurrent.futures import Future
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from lyra.build import BuildTask, create_builder
+from lyra.build import BuildTask
 from lyra.combo import CombinationCalculator
 from lyra.config_loader import ImagePackConfig
 from lyra.downloader import Downloader
@@ -15,7 +15,7 @@ from lyra.parallel import build_all_parallel
 from lyra.paths import BuildPaths
 from lyra.prepare import GamePreparer
 from lyra.utils import copy_directory
-from lyra.version import LyraVersion
+from lyra.version import LyraVersion, package_filename
 from lyra.warmup import ResourceWarmer
 
 
@@ -106,7 +106,9 @@ class BuildFlowTests(unittest.TestCase):
         for kind in ("zip", "apk"):
             for code in codes:
                 task = BuildTask.from_code_str(code, kind, version)
-                filename = create_builder(task).get_output_name()
+                filename = package_filename(
+                    task.version, task.mod_code, task.pack_type, task.is_polyfill
+                )
                 with self.subTest(kind=kind, code=code):
                     self.assertEqual(
                         filename,

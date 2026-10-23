@@ -79,19 +79,18 @@ jobs:
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: "temurin"
-          java-version: "25"
+          java-version: "25.0.5"
 
       - name: Prepare game packages
         shell: bash
         env:
-          IS_RELEASE: ${{ steps.meta.outputs.is_release }}
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
         run: |
-          if [[ "$IS_RELEASE" == "true" ]]; then
-            python main.py prepare --workspace "$BUILD_WORKSPACE" --tag "$RELEASE_TAG" -v
-          else
-            python main.py prepare --workspace "$BUILD_WORKSPACE" -v
+          TAG_ARGS=()
+          if [[ -n "$RELEASE_TAG" ]]; then
+            TAG_ARGS=(--tag "$RELEASE_TAG")
           fi
+          python main.py prepare --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" -v
 
       - name: Setup APK signing key
         shell: bash
@@ -118,27 +117,27 @@ jobs:
       - name: Build all combinations
         shell: bash
         env:
-          IS_RELEASE: ${{ steps.meta.outputs.is_release }}
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
         run: |
-          if [[ "$IS_RELEASE" == "true" ]]; then
-            python main.py build --workspace "$BUILD_WORKSPACE" --tag "$RELEASE_TAG" --jobs 4 -v
-          else
-            python main.py build --workspace "$BUILD_WORKSPACE" --jobs 4 -v
+          TAG_ARGS=()
+          if [[ -n "$RELEASE_TAG" ]]; then
+            TAG_ARGS=(--tag "$RELEASE_TAG")
           fi
+          python main.py build --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" --jobs 4 -v
 
       - name: List outputs
         run: ls -lah "$BUILD_WORKSPACE/output/" || echo "No output files generated"
 
       - name: Verify all packages
+        shell: bash
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
         run: |
+          TAG_ARGS=()
           if [[ -n "$RELEASE_TAG" ]]; then
-            python main.py verify --workspace "$BUILD_WORKSPACE" --tag "$RELEASE_TAG" -v
-          else
-            python main.py verify --workspace "$BUILD_WORKSPACE" -v
+            TAG_ARGS=(--tag "$RELEASE_TAG")
           fi
+          python main.py verify --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" -v
 
       - name: Upload verification report
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -150,7 +149,7 @@ jobs:
 
       - name: Install browser test tools
         run: |
-          python -m pip install playwright==1.64.1
+          python -m pip install -r requirements-dev.txt
           python -m playwright install --with-deps chromium
 
       - name: Verify normal and polyfill browser runtime
@@ -183,31 +182,6 @@ jobs:
             --output "output/$VERSION.md" \
             -v
           cat "output/$VERSION.md"
-
-      - name: Pick sample outputs
-        if: steps.meta.outputs.is_release != 'true'
-        id: sample
-        shell: bash
-        run: |
-          ZIP_FILE=$(find "$BUILD_WORKSPACE/output" -maxdepth 1 -type f -name "*.zip" | sort | head -n 1)
-          APK_FILE=$(find "$BUILD_WORKSPACE/output" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)
-
-          echo "zip=$ZIP_FILE" >> "$GITHUB_OUTPUT"
-          echo "apk=$APK_FILE" >> "$GITHUB_OUTPUT"
-
-      - name: Upload ZIP sample artifact
-        if: steps.meta.outputs.is_release != 'true' && steps.sample.outputs.zip != ''
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dol-builds-zip-sample
-          path: ${{ steps.sample.outputs.zip }}
-
-      - name: Upload APK sample artifact
-        if: steps.meta.outputs.is_release != 'true' && steps.sample.outputs.apk != ''
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dol-builds-apk-sample
-          path: ${{ steps.sample.outputs.apk }}
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

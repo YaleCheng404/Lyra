@@ -4,7 +4,7 @@ import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from .build import BuildTask, build_single
+from .build import BuildTask, PackageBuilder
 from .combo import CombinationCalculator
 from .paths import BuildPaths
 from .utils import setup_logging
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def _build_task_worker(task: BuildTask, verbose: bool) -> tuple[bool, str | None]:
     # Windows 的 spawn 子进程需要单独初始化日志。
     setup_logging(verbose)
-    result = build_single(task)
+    result = PackageBuilder(task).build()
     return result.success, result.error
 
 

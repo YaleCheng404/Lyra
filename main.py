@@ -21,24 +21,19 @@ def cmd_prepare(args) -> int:
     from lyra.downloader import Downloader
     from lyra.prepare import GamePreparer
 
-    setup_logging(args.verbose)
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
 
-    # 解析版本
     version = LyraVersion.from_tag(args.tag) if args.tag else None
     if version:
         logger.info(f"目标版本: {version}")
 
-    # 初始化路径
     paths = BuildPaths(workspace=Path(args.workspace))
     paths.ensure_dirs()
 
-    # 下载资源
     downloader = Downloader(paths)
     downloaded_files = downloader.download_from_chs_repo(version)
     extra_mods = downloader.download_extra_mods()
 
-    # 下载工具
     downloader.download_apktool()
     downloader.download_apksign()
 
@@ -46,11 +41,9 @@ def cmd_prepare(args) -> int:
     if "i18n" in downloaded_files:
         extra_mods["i18n"] = downloaded_files["i18n"]
 
-    # 预处理
     preparer = GamePreparer(paths)
     preparer.prepare_all(downloaded_files, extra_mods)
 
-    # 合并并保存版本信息
     registry = VersionRegistry()
     registry.extend(list(downloader.registry))
     registry.extend(list(preparer.registry))
@@ -64,18 +57,14 @@ def cmd_warmup(args) -> int:
     """预热美化资源命令。"""
     from lyra.warmup import ResourceWarmer
 
-    setup_logging(args.verbose)
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
 
-    # 初始化路径
     paths = BuildPaths(workspace=Path(args.workspace))
     paths.ensure_dirs()
 
-    # 预热资源
     warmer = ResourceWarmer(paths)
     registry = warmer.warmup_all()
 
-    # 加载已有版本信息并合并
     existing_registry = VersionRegistry.load(paths.versions_file)
     existing_registry.extend(list(registry))
     existing_registry.save(paths.versions_file)
@@ -88,22 +77,17 @@ def cmd_build(args) -> int:
     """构建命令。"""
     from lyra.parallel import build_all_parallel
 
-    setup_logging(args.verbose)
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
 
-    # 解析版本
     version = LyraVersion.from_tag(args.tag) if args.tag else None
     if version:
         logger.info(f"构建版本: {version}")
 
-    # 初始化路径
     paths = BuildPaths(workspace=Path(args.workspace))
     paths.ensure_dirs()
 
-    # 确定包类型
     pack_types = [args.pack_type] if args.pack_type else ["zip", "apk"]
 
-    # 并行构建
     _, fail = build_all_parallel(
         paths=paths,
         version=version,
@@ -120,10 +104,7 @@ def cmd_page(args) -> int:
     """生成下载页面命令。"""
     from lyra.gen_page import generate_download_page
 
-    setup_logging(args.verbose)
-
-    # 解析版本
-    version = args.version or (args.tag if args.tag else None)
+    version = args.version or args.tag
 
     output_path = Path(args.output) if args.output else None
     versions_file = Path(args.versions_file) if args.versions_file else None
@@ -157,10 +138,8 @@ def cmd_matrix(args) -> int:
     )
 
     if args.output_format == "shell":
-        # Shell 数组格式
         print("CODES=(" + " ".join(f'"{c}"' for c in codes) + ")")
     else:
-        # JSON 格式
         print(json.dumps(codes))
 
     return 0
@@ -179,7 +158,6 @@ def cmd_verify(args) -> int:
     """校验全部构建产物。"""
     from lyra.verify import verify_packages
 
-    setup_logging(args.verbose)
     version = LyraVersion.from_tag(args.tag) if args.tag else None
     verify_packages(BuildPaths(workspace=Path(args.workspace)), version)
     return 0
@@ -189,8 +167,6 @@ def cmd_check(args) -> int:
     """检查是否需要更新。"""
     from lyra.config_loader import load_build_config
     from lyra.updater import check_chs_update
-
-    setup_logging(args.verbose)
 
     build_config = load_build_config()
     source_repo = args.source_repo or build_config.chs_repo_url
@@ -246,7 +222,6 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", help="可用命令")
 
-    # prepare 命令
     prep_parser = subparsers.add_parser(
         "prepare",
         help="下载并预处理游戏资源",
@@ -256,19 +231,13 @@ def main():
         "--tag",
         help="版本 tag（格式: v0.5.7.9-5.0.2a-0112）",
     )
-    prep_parser.add_argument("--workspace", default=".", help="工作目录")
-    prep_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
-    # warmup 命令
     warmup_parser = subparsers.add_parser(
         "warmup",
         help="预热美化资源",
         description="下载并解压所有美化资源，避免并行构建时的冲突。",
     )
-    warmup_parser.add_argument("--workspace", default=".", help="工作目录")
-    warmup_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
-    # build 命令
     build_parser = subparsers.add_parser(
         "build",
         help="并行构建所有组合",
@@ -290,15 +259,10 @@ def main():
         type=int,
         help="并发进程数（默认: min(CPU核心数, 4)）",
     )
-    build_parser.add_argument("--workspace", default=".", help="工作目录")
-    build_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
     verify_parser = subparsers.add_parser("verify", help="校验完整产物集合与必需 Mod")
     verify_parser.add_argument("--tag", help="构建版本 tag")
-    verify_parser.add_argument("--workspace", default=".", help="工作目录")
-    verify_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
-    # page 命令
     page_parser = subparsers.add_parser(
         "page",
         help="生成下载页面",
@@ -309,9 +273,7 @@ def main():
     page_parser.add_argument("--github-owner", help="GitHub 用户名")
     page_parser.add_argument("--github-repo", help="GitHub 仓库名")
     page_parser.add_argument("--versions-file", help="版本信息文件路径")
-    page_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
-    # matrix 命令
     matrix_parser = subparsers.add_parser(
         "matrix",
         help="生成构建矩阵",
@@ -323,13 +285,11 @@ def main():
         help="输出格式",
     )
 
-    # list 命令
     subparsers.add_parser(
         "list",
         help="列出所有 MOD 组合",
     )
 
-    # check 命令
     check_parser = subparsers.add_parser(
         "check",
         help="检查是否需要更新",
@@ -345,9 +305,23 @@ def main():
     check_parser.add_argument(
         "--github-repo", help="GitHub 仓库名（默认使用 GITHUB_REPOSITORY 或配置文件）"
     )
-    check_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
+
+    for command_parser in (prep_parser, warmup_parser, build_parser, verify_parser):
+        command_parser.add_argument("--workspace", default=".", help="工作目录")
+    for command_parser in (
+        prep_parser,
+        warmup_parser,
+        build_parser,
+        verify_parser,
+        page_parser,
+        check_parser,
+    ):
+        command_parser.add_argument(
+            "-v", "--verbose", action="store_true", help="详细输出"
+        )
 
     args = parser.parse_args()
+    setup_logging(getattr(args, "verbose", False))
 
     if not args.command:
         parser.print_help()

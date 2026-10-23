@@ -1,6 +1,7 @@
 """MOD组合计算模块。"""
 
 from dataclasses import dataclass
+from itertools import product
 from pathlib import Path
 
 from .config_loader import (
@@ -61,14 +62,6 @@ class CombinationCalculator:
         """获取组合配置"""
         return self.loader.combinations
 
-    @property
-    def num_bits(self) -> int:
-        """计算需要的位数"""
-        if not self.features:
-            return 13
-        max_bit = max(f.bit for f in self.features)
-        return max_bit.bit_length()
-
     def _has_feature(self, value: int, feature_id: str) -> bool:
         """检查组合中是否包含指定功能"""
         feature = self._feature_map.get(feature_id)
@@ -86,7 +79,6 @@ class CombinationCalculator:
             if not self._has_bit(value, feature.bit):
                 continue
 
-            # 检查此功能的所有依赖
             for dep_id in feature.depends_on:
                 if not self._has_feature(value, dep_id):
                     return False
@@ -99,7 +91,6 @@ class CombinationCalculator:
             if not self._has_bit(value, feature.bit):
                 continue
 
-            # 检查此功能的所有冲突
             for conflict_id in feature.conflicts_with:
                 if self._has_feature(value, conflict_id):
                     return False
@@ -108,25 +99,20 @@ class CombinationCalculator:
 
     def _should_skip(self, value: int) -> bool:
         """检查是否应该跳过此组合"""
-        # 跳过 0
         if value == 0 or value & ~self._known_mask:
             return True
 
-        # 检查必选功能
         for feature in self.features:
             if feature.required and not self._has_bit(value, feature.bit):
                 return True
 
-        # 检查跳过的功能
         for feature in self.features:
             if feature.skip and self._has_bit(value, feature.bit):
                 return True
 
-        # 检查依赖关系
         if not self._check_dependencies(value):
             return True
 
-        # 检查冲突关系
         if not self._check_conflicts(value):
             return True
 
@@ -134,7 +120,6 @@ class CombinationCalculator:
 
     def _get_display_name(self, code: int) -> str:
         """获取组合的显示名称"""
-        # 仅包含作弊CSD的基础版本
         cheat_feature = self._feature_map.get("cheat_csd")
         if cheat_feature and code == cheat_feature.bit:
             return "基础"
@@ -159,9 +144,11 @@ class CombinationCalculator:
         combinations = []
         config = self.combinations_config
 
-        # 遍历所有可能的组合
-        max_value = 2**self.num_bits
-        for i in range(max_value):
+        for selected in product((False, True), repeat=len(self.features)):
+            i = 0
+            for feature, enabled in zip(self.features, selected):
+                if enabled:
+                    i |= feature.bit
             if not self._should_skip(i):
                 comb = ModCombination(
                     code=i,
@@ -170,7 +157,6 @@ class CombinationCalculator:
                 )
                 combinations.append(comb)
 
-        # 添加白名单
         existing_codes = {c.code for c in combinations}
         for code in config.whitelist:
             self._validate_code(code)
@@ -185,7 +171,6 @@ class CombinationCalculator:
         # 排序：推荐的放前面，然后按code排序
         combinations.sort(key=lambda x: (-x.is_recommended, x.code))
 
-        # 添加polyfill版本
         if include_polyfill and config.polyfill_enabled:
             self._validate_code(config.polyfill_code)
             polyfill_comb = ModCombination(
@@ -217,7 +202,6 @@ class CombinationCalculator:
         lines = []
 
         for comb in combinations:
-            # 对于推荐版本，在显示名称上添加星号标记
             display_name = comb.display_name
             if comb.is_recommended:
                 display_name = f"***{display_name}(推荐)***"
@@ -229,7 +213,6 @@ class CombinationCalculator:
                 f"功能: {display_name}, 推荐： {rec}"
             )
 
-        # 添加code列表
         sorted_combinations = sorted(combinations, key=lambda c: c.code)
         codes = [c.code for c in sorted_combinations]
         lines.append(f"{codes}")

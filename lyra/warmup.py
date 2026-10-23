@@ -35,13 +35,10 @@ class ResourceWarmer:
         """预热所有美化资源。"""
         logger.info("========== 开始资源预热 ==========")
 
-        # 确保临时目录存在
         self.paths.temp_dir.mkdir(parents=True, exist_ok=True)
 
-        # 预热 DoL+ 图片包
         self._warmup_dolp_packs()
 
-        # 预热 modloader mod
         self._warmup_modloader_mods()
 
         logger.info("========== 资源预热完成 ==========")
@@ -55,7 +52,6 @@ class ResourceWarmer:
 
         urls = {url for pack in self.config.imagepacks.values() for url in pack.urls}
 
-        # 获取 DoL+ commit hash 作为版本
         commit_hash = get_gitgud_commit_hash(
             "Frostberg/degrees-of-lewdity-plus", "master"
         )
@@ -79,7 +75,6 @@ class ResourceWarmer:
         tar_path = self.paths.temp_dir / f"dolp-{pack_name}.tar.gz"
         extract_dir = self.paths.temp_dir / f"dolp-{pack_name}"
 
-        # 检查是否已存在
         if extract_dir.exists() and (extract_dir / "img").exists():
             logger.debug(f"  {pack_name}: 已缓存")
             return
@@ -87,7 +82,6 @@ class ResourceWarmer:
         logger.info(f"  下载: {pack_name}")
         download_file(url, tar_path, quiet=True)
 
-        # 解压
         img_dir = extract_dir / "img"
         img_dir.mkdir(parents=True, exist_ok=True)
         extract_tar_gz(tar_path, img_dir, strip_components=3)
@@ -137,12 +131,10 @@ class ResourceWarmer:
         cache_name = mod_config.feature_id.replace("-", "_")
         dest_path = self.paths.get_mod_cache_path(cache_name)
 
-        # 检查是否已存在
         if dest_path.exists():
             logger.debug(f"  {display_name}: 已缓存")
             return
 
-        # 获取资源信息
         asset = get_github_release_asset(
             mod_config.github_repo,
             mod_config.asset_pattern,
@@ -153,7 +145,6 @@ class ResourceWarmer:
             logger.warning(f"  {display_name}: 无法获取下载信息")
             return
 
-        # 记录版本信息
         self.registry.add(
             VersionInfo(
                 name=display_name,
@@ -163,6 +154,5 @@ class ResourceWarmer:
             )
         )
 
-        # 下载 mod 文件
         download_file(asset.url, dest_path, quiet=True)
         logger.info(f"  {display_name}: 下载完成 ({asset.version})")

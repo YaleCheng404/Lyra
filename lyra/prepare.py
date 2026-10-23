@@ -53,12 +53,10 @@ class ApkProcessor:
         """应用配置中的替换规则。"""
         logger.info("应用 APK 配置替换...")
 
-        # 按文件分组替换规则
         file_replacements: dict[str, list] = {}
         for replacement in self.config.apk_replacements:
             file_replacements.setdefault(replacement.file, []).append(replacement)
 
-        # 应用替换规则
         for file_path, replacements in file_replacements.items():
             full_path = apk_dir / file_path
             if not full_path.exists():
@@ -79,35 +77,27 @@ class ApkProcessor:
                 logger.info(f"  已修改: {file_path}")
 
 
-class ModInjector:
-    """Mod 注入器。"""
+def patch_modloader_code(html_path: Path):
+    """修改 HTML 文件中 ModLoader 的 JavaScript 代码。"""
+    if not html_path.exists():
+        raise FileNotFoundError(html_path)
 
-    add_mods = staticmethod(add_mods_to_html)
-    replace_mod = staticmethod(replace_mod_by_id)
+    try:
+        content = html_path.read_text(encoding="utf-8")
 
-    def patch_modloader_code(self, html_path: Path):
-        """修改 HTML 文件中 ModLoader 的 JavaScript 代码。"""
-        if not html_path.exists():
-            raise FileNotFoundError(html_path)
+        old_pattern = "const remodloader = modReadCache.clone();"
+        new_pattern = """const remodloader = modReadCache.clone();
+        remodloader.filterItems((mod) => mod.bootJson && mod.bootJson.name !== 'ModLoader');"""
 
-        try:
-            content = html_path.read_text(encoding="utf-8")
+        if old_pattern in content:
+            content = content.replace(old_pattern, new_pattern)
+            html_path.write_text(content, encoding="utf-8")
+            logger.info(f"  已修补 ModLoader 代码: {html_path.name}")
+        else:
+            logger.debug(f"  未找到需要修补的代码: {html_path.name}")
 
-            # 查找并修改 ModLoader 代码
-            # 将 modReadCache.clone() 后添加过滤逻辑
-            old_pattern = "const remodloader = modReadCache.clone();"
-            new_pattern = """const remodloader = modReadCache.clone();
-            remodloader.filterItems((mod) => mod.bootJson && mod.bootJson.name !== 'ModLoader');"""
-
-            if old_pattern in content:
-                content = content.replace(old_pattern, new_pattern)
-                html_path.write_text(content, encoding="utf-8")
-                logger.info(f"  已修补 ModLoader 代码: {html_path.name}")
-            else:
-                logger.debug(f"  未找到需要修补的代码: {html_path.name}")
-
-        except Exception as e:
-            raise RuntimeError(f"修补 ModLoader 代码失败: {html_path}") from e
+    except Exception as e:
+        raise RuntimeError(f"修补 ModLoader 代码失败: {html_path}") from e
 
 
 class GamePreparer:
@@ -117,7 +107,6 @@ class GamePreparer:
         """初始化预处理器。"""
         self.paths = paths
         self.apk_processor = ApkProcessor(paths)
-        self.mod_injector = ModInjector()
         self.registry = VersionRegistry()
 
     def prepare_all(
@@ -130,10 +119,8 @@ class GamePreparer:
 
         self._validate_required_mods(extra_mods)
 
-        # 准备 ZIP 基包
         self._prepare_zip_base(downloaded_files, extra_mods)
 
-        # 准备 APK
         self._prepare_apk(downloaded_files, extra_mods)
 
         logger.info("========== 游戏预处理完成 ==========")
@@ -145,7 +132,6 @@ class GamePreparer:
         extra_mods: dict[str, Path],
     ):
         """准备 ZIP 基包"""
-        # 处理普通版
         if "zip" in downloaded_files:
             self._process_zip_version(
                 downloaded_files["zip"],
@@ -154,7 +140,6 @@ class GamePreparer:
                 polyfill=False,
             )
 
-        # 处理 polyfill 版
         if "polyfill_zip" in downloaded_files:
             self._process_zip_version(
                 downloaded_files["polyfill_zip"],
@@ -174,20 +159,16 @@ class GamePreparer:
         suffix = "-polyfill" if polyfill else ""
         logger.info(f"处理 ZIP{suffix}...")
 
-        # 解压到临时目录
         extract_dir = self.paths.prepare_dir / f"zip{suffix}"
         extract_zip(zip_path, extract_dir)
 
-        # 合并图片包
         if image_pack_path:
             self._merge_image_pack(image_pack_path, extract_dir)
 
-        # 注入 mod
         html_files = list(extract_dir.glob("*.html"))
         if html_files:
             self._inject_mods(html_files[0], extra_mods)
 
-        # 创建基包
         base_zip = self.paths.get_base_zip(polyfill)
         create_zip(extract_dir, base_zip)
         logger.info(f"  基包已创建: {base_zip}")
@@ -219,19 +200,15 @@ class GamePreparer:
         suffix = "-polyfill" if polyfill else ""
         logger.info(f"处理 APK{suffix}...")
 
-        # 反编译
         apk_dir = self.paths.get_apk_dir(polyfill)
         self.apk_processor.decompile(apk_path, apk_dir)
 
-        # 应用替换规则
         self.apk_processor.apply_replacements(apk_dir)
 
-        # 合并图片包
         if image_pack_path:
             img_dest = apk_dir / "assets" / "www" / "img"
             self._merge_image_pack(image_pack_path, img_dest.parent)
 
-        # 注入 mod
         html_path = apk_dir / "assets" / "www" / "index.html"
         if html_path.exists():
             self._inject_mods(html_path, extra_mods)
@@ -248,17 +225,14 @@ class GamePreparer:
             if mod.key not in extra_mods:
                 continue
             if mod.inject == "replace":
-                self.mod_injector.replace_mod(
-                    html_path, mod.replace_slot, extra_mods[mod.key]
-                )
+                replace_mod_by_id(html_path, mod.replace_slot, extra_mods[mod.key])
             else:
                 mods_to_add.append(extra_mods[mod.key])
 
         if mods_to_add:
-            self.mod_injector.add_mods(html_path, mods_to_add)
+            add_mods_to_html(html_path, mods_to_add)
 
-        # 修补 ModLoader 代码
-        self.mod_injector.patch_modloader_code(html_path)
+        patch_modloader_code(html_path)
 
     @staticmethod
     def _validate_required_mods(extra_mods: dict[str, Path]):
@@ -270,11 +244,9 @@ class GamePreparer:
 
     def _merge_image_pack(self, image_pack_path: Path, target_dir: Path):
         """合并图片包"""
-        # 解压图片包
         temp_dir = self.paths.temp_dir / "image_pack_temp"
         extract_zip(image_pack_path, temp_dir)
 
-        # 查找 img 目录
         img_src = (
             temp_dir / "img"
             if (temp_dir / "img").exists()
@@ -293,5 +265,4 @@ class GamePreparer:
             copy_directory(img_src, img_dest)
             logger.debug(f"  合并图片包: {img_src} -> {img_dest}")
 
-        # 清理
         safe_remove(temp_dir)

@@ -2,17 +2,15 @@
 
 import logging
 import shutil
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
 from pathlib import Path
 
-from .combo import CombinationCalculator
+from scripts.modmagic import add_mods_to_html
+
 from .config import ModCode
-from .config_loader import get_config_loader, load_build_config
+from .config_loader import get_config_loader
 from .lyra_mod import build_lyra_mod
 from .paths import BuildPaths
-from .prepare import ModInjector
 from .utils import (
     copy_directory,
     create_zip,
@@ -20,7 +18,7 @@ from .utils import (
     run_command,
     safe_remove,
 )
-from .version import LyraVersion, VersionRegistry
+from .version import LyraVersion, VersionRegistry, package_filename
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +53,7 @@ class BuildTask:
     ) -> "BuildTask":
         """从代码字符串创建任务。"""
         is_polyfill = code_str.startswith("polyfill-")
-        mod_code = int(code_str.replace("polyfill-", ""))
+        mod_code = int(code_str.removeprefix("polyfill-"))
         return cls(
             pack_type=pack_type,
             mod_code=mod_code,
@@ -71,316 +69,131 @@ class BuildResult:
 
     success: bool
     output_path: Path | None = None
-    output_name: str = ""
     error: str | None = None
-    applied_mods: list[str] = field(default_factory=list)
 
 
-class PackageBuilder(ABC):
-    """打包构建器基类。"""
+class PackageBuilder:
+    """准备资源、注入 Mod，并生成单个 ZIP 或签名 APK。"""
 
-    def __init__(self, task: BuildTask):
-        """初始化构建器。"""
-        self.task = task
-        self.paths = task.paths
-        self.mod_code = ModCode(task.mod_code)
-
-    @property
-    @abstractmethod
-    def pack_type(self) -> str:
-        """包类型"""
-
-    @property
-    @abstractmethod
-    def img_path(self) -> Path:
-        """图片目录路径（相对于工作目录）"""
-
-    @property
-    @abstractmethod
-    def html_path(self) -> Path:
-        """HTML 文件路径（相对于工作目录）"""
-
-    @property
-    def work_dir(self) -> Path:
-        """当前构建的工作目录"""
-        return self.paths.get_build_work_dir(
-            self.pack_type,
-            self.task.mod_code,
-            self.task.is_polyfill,
-        )
-
-    def get_output_name(self) -> str:
-        """生成输出文件名"""
-        if self.task.version:
-            dol_ver = self.task.version.dol_ver
-            chs_ver = self.task.version.chs_ver
-            date_str = self.task.version.date
-        else:
-            dol_ver = "unknown"
-            chs_ver = "unknown"
-            tz = timezone(timedelta(hours=8))
-            date_str = datetime.now(tz).strftime("%m%d")
-
-        # 构建前缀
-        prefix = f"DoL-{dol_ver}-Lyra-{chs_ver}"
-        if self.task.is_polyfill:
-            prefix += "-polyfill"
-
-        # 添加MOD后缀
-        mod_suffix = self.mod_code.get_suffix()
-        if mod_suffix:
-            prefix += f"-{mod_suffix}"
-
-        return f"{prefix}-{date_str}.{self.pack_type}"
-
-    def _apply_beautify(self) -> list[str]:
-        """应用预热的美化资源。"""
-        applied = []
-
-        # 美化资源映射
-        beautify_map = {
-            ModCode.BESC: ("besc", "BESC"),
-            ModCode.SIDEVIEW_HIKARI: ("hikari", "Hikari"),
-            ModCode.UCB: ("ucb", "UCB"),
-        }
-
-        # 按顺序处理美化
-        order = [
-            ModCode.BESC,
-            ModCode.SIDEVIEW_HIKARI,
-            ModCode.UCB,  # UCB 最后处理
-        ]
-
-        for code in order:
-            if self.mod_code & code:
-                cache_name, display_name = beautify_map.get(code, (None, None))
-                if cache_name:
-                    cache_dir = self.paths.get_beautify_cache_dir(cache_name) / "img"
-                    if cache_dir.exists():
-                        logger.debug(f"应用美化: {display_name}")
-                        copy_directory(cache_dir, self.img_path)
-                        applied.append(display_name)
-                    else:
-                        logger.warning(f"美化资源不存在: {cache_dir}")
-
-        return applied
-
-    def _inject_modloader_mods(self) -> list[str]:
-        """注入 modloader mod 到 HTML。"""
-        build_config = load_build_config()
-        if not build_config.modloader_mods:
-            return []
-
-        config_loader = get_config_loader()
-        mod_paths = []
-        applied = []
-
-        for mod_config in build_config.modloader_mods:
-            feature = config_loader.get_feature_by_id(mod_config.feature_id)
-            if not feature:
-                logger.warning(f"未找到 feature: {mod_config.feature_id}")
-                continue
-
-            if self.mod_code & feature.bit:
-                cache_name = mod_config.feature_id.replace("-", "_")
-                mod_path = self.paths.get_mod_cache_path(cache_name)
-                if mod_path.exists():
-                    mod_paths.append(mod_path)
-                    applied.append(feature.name)
-                else:
-                    logger.warning(f"mod 文件不存在: {mod_path}")
-
-        if mod_paths:
-            injector = ModInjector()
-            injector.add_mods(self.html_path, mod_paths)
-
-        return applied
-
-    def _inject_lyra_mod(self):
-        """构建并注入 Lyra 信息 mod。"""
-        # 加载完整版本信息
-        registry = VersionRegistry.load(self.paths.versions_file)
-
-        # 获取 MOD 组合后缀
-        mod_suffix = self.mod_code.get_suffix()
-
-        # 构建 Lyra mod（使用任务唯一路径避免并行竞态）
-        lyra_mod_path = (
-            self.paths.temp_dir / f"Lyra-{self.pack_type}-{self.task.code_str}.mod.zip"
-        )
-        build_lyra_mod(lyra_mod_path, self.task.version, list(registry), mod_suffix)
-
-        # 注入到 HTML
-        injector = ModInjector()
-        injector.add_mods(self.html_path, [lyra_mod_path])
-
-    @abstractmethod
-    def build(self) -> BuildResult:
-        """执行构建"""
-
-
-class ZipBuilder(PackageBuilder):
-    """ZIP包构建器"""
-
-    @property
-    def pack_type(self) -> str:
-        return "zip"
-
-    @property
-    def img_path(self) -> Path:
-        return self.work_dir / "img"
-
-    @property
-    def html_path(self) -> Path:
-        html_files = list(self.work_dir.glob("*.html"))
-        if html_files:
-            return html_files[0]
-        return self.work_dir / "index.html"
-
-    def build(self) -> BuildResult:
-        """构建ZIP包"""
-        try:
-            calculator = CombinationCalculator()
-            combo_name = calculator._get_display_name(self.task.mod_code)
-            logger.info(f"构建 ZIP: {self.task.code_str} ({combo_name})")
-        except Exception:
-            logger.info(f"构建 ZIP: {self.task.code_str}")
-
-        try:
-            # 获取基包路径
-            base_zip = self.paths.get_base_zip(self.task.is_polyfill)
-            if not base_zip.exists():
-                return BuildResult(success=False, error=f"基包不存在: {base_zip}")
-
-            # 清理并创建工作目录
-            if self.work_dir.exists():
-                safe_remove(self.work_dir)
-            self.work_dir.mkdir(parents=True)
-
-            # 解压基包
-            extract_zip(base_zip, self.work_dir)
-
-            # 应用美化
-            applied_mods = self._apply_beautify()
-
-            # 注入 modloader mod
-            applied_mods.extend(self._inject_modloader_mods())
-
-            # 注入 Lyra 信息 mod
-            self._inject_lyra_mod()
-
-            # 生成输出文件名
-            output_name = self.get_output_name()
-            output_path = self.paths.output_dir / output_name
-
-            # 创建ZIP
-            create_zip(self.work_dir, output_path)
-
-            # 清理工作目录
-            safe_remove(self.work_dir)
-
-            logger.info(f"  完成: {output_name}")
-
-            return BuildResult(
-                success=True,
-                output_path=output_path,
-                output_name=output_name,
-                applied_mods=applied_mods,
-            )
-
-        except Exception as e:
-            logger.error(f"ZIP构建失败: {e}")
-            if self.work_dir.exists():
-                safe_remove(self.work_dir)
-            return BuildResult(success=False, error=str(e))
-
-
-class ApkBuilder(PackageBuilder):
-    """APK包构建器"""
-
-    # 签名配置
     KEYSTORE_PATH = Path("dol.jks")
     KEYSTORE_ALIAS = "dol"
     KEYSTORE_PASSWORD = "dolchs"
 
+    def __init__(self, task: BuildTask):
+        self.task = task
+        self.pack_type = task.pack_type.lower()
+        if self.pack_type not in {"zip", "apk"}:
+            raise ValueError(f"不支持的包类型: {task.pack_type}")
+        self.paths = task.paths
+        self.mod_code = ModCode(task.mod_code)
+        self.work_dir = self.paths.get_build_work_dir(
+            self.pack_type, task.mod_code, task.is_polyfill
+        )
+        self.lyra_mod_path = (
+            self.paths.temp_dir / f"Lyra-{self.pack_type}-{task.code_str}.mod.zip"
+        )
+
     @property
-    def pack_type(self) -> str:
-        return "apk"
+    def html_dir(self) -> Path:
+        return (
+            self.work_dir / "assets/www" if self.pack_type == "apk" else self.work_dir
+        )
 
     @property
     def img_path(self) -> Path:
-        return self.work_dir / "assets" / "www" / "img"
+        return self.html_dir / "img"
 
     @property
     def html_path(self) -> Path:
-        return self.work_dir / "assets" / "www" / "index.html"
+        if self.pack_type == "apk":
+            return self.html_dir / "index.html"
+        return next(self.html_dir.glob("*.html"), self.html_dir / "index.html")
+
+    def _apply_beautify(self):
+        # 覆盖顺序影响最终图片，UCB 必须最后应用。
+        for code, name in (
+            (ModCode.BESC, "besc"),
+            (ModCode.SIDEVIEW_HIKARI, "hikari"),
+            (ModCode.UCB, "ucb"),
+        ):
+            if self.mod_code & code:
+                source = self.paths.get_beautify_cache_dir(name) / "img"
+                if source.exists():
+                    copy_directory(source, self.img_path)
+                else:
+                    logger.warning("美化资源不存在: %s", source)
+
+    def _inject_modloader_mods(self):
+        loader = get_config_loader()
+        mods = []
+        for mod in loader.build.modloader_mods:
+            feature = loader.get_feature_by_id(mod.feature_id)
+            if not feature:
+                logger.warning("未找到功能: %s", mod.feature_id)
+                continue
+            if self.mod_code & feature.bit:
+                path = self.paths.get_mod_cache_path(mod.feature_id.replace("-", "_"))
+                if path.exists():
+                    mods.append(path)
+                else:
+                    logger.warning("Mod 文件不存在: %s", path)
+        if mods:
+            add_mods_to_html(self.html_path, mods)
+
+    def _inject_lyra_mod(self):
+        """构建并注入 Lyra 信息 mod。"""
+        registry = VersionRegistry.load(self.paths.versions_file)
+
+        mod_suffix = self.mod_code.get_suffix()
+
+        # 构建 Lyra mod（使用任务唯一路径避免并行竞态）
+        lyra_mod_path = self.lyra_mod_path
+        build_lyra_mod(lyra_mod_path, self.task.version, list(registry), mod_suffix)
+
+        add_mods_to_html(self.html_path, [lyra_mod_path])
 
     def build(self) -> BuildResult:
-        """构建APK包"""
+        output = self.paths.output_dir / package_filename(
+            self.task.version, self.task.mod_code, self.pack_type, self.task.is_polyfill
+        )
+        partial = output.with_name(output.name + ".part")
+        tmp_apk = self.paths.get_temp_apk(self.task.mod_code, self.task.is_polyfill)
+        signed_dir = self.paths.get_signed_dir(
+            self.task.mod_code, self.task.is_polyfill
+        )
+        logger.info("构建 %s: %s", self.pack_type.upper(), self.task.code_str)
         try:
-            calculator = CombinationCalculator()
-            combo_name = calculator._get_display_name(self.task.mod_code)
-            logger.info(f"构建 APK: {self.task.code_str} ({combo_name})")
-        except Exception:
-            logger.info(f"构建 APK: {self.task.code_str}")
-
-        try:
-            # 获取已解包APK目录
-            apk_dir = self.paths.get_apk_dir(self.task.is_polyfill)
-            if not apk_dir.exists():
-                return BuildResult(success=False, error=f"APK目录不存在: {apk_dir}")
-
-            # 清理并创建工作目录
-            if self.work_dir.exists():
-                safe_remove(self.work_dir)
-            self.work_dir.mkdir(parents=True)
-
-            # 复制已解包APK目录
-            copy_directory(apk_dir, self.work_dir)
-
-            # 应用美化
-            applied_mods = self._apply_beautify()
-
-            # 注入 modloader mod
-            applied_mods.extend(self._inject_modloader_mods())
-
-            # 注入 Lyra 信息 mod
-            self._inject_lyra_mod()
-
-            # 重新编译
-            tmp_apk = self._recompile()
-
-            # 签名
-            signed_apk = self._sign(tmp_apk)
-
-            # 生成输出文件名
-            output_name = self.get_output_name()
-            output_path = self.paths.output_dir / output_name
-
-            # 移动到输出目录
-            shutil.move(str(signed_apk), str(output_path))
-
-            # 清理
-            safe_remove(tmp_apk)
-            safe_remove(
-                self.paths.get_signed_dir(self.task.mod_code, self.task.is_polyfill)
-            )
             safe_remove(self.work_dir)
-
-            logger.info(f"  完成: {output_name}")
-
-            return BuildResult(
-                success=True,
-                output_path=output_path,
-                output_name=output_name,
-                applied_mods=applied_mods,
-            )
-
-        except Exception as e:
-            logger.error(f"APK构建失败: {e}")
-            if self.work_dir.exists():
-                safe_remove(self.work_dir)
-            return BuildResult(success=False, error=str(e))
+            if self.pack_type == "zip":
+                extract_zip(
+                    self.paths.get_base_zip(self.task.is_polyfill), self.work_dir
+                )
+            else:
+                copy_directory(
+                    self.paths.get_apk_dir(self.task.is_polyfill), self.work_dir
+                )
+                safe_remove(signed_dir)
+            self._apply_beautify()
+            self._inject_modloader_mods()
+            self._inject_lyra_mod()
+            output.parent.mkdir(parents=True, exist_ok=True)
+            if self.pack_type == "zip":
+                create_zip(self.work_dir, partial)
+            else:
+                shutil.move(str(self._sign(self._recompile())), str(partial))
+            partial.replace(output)
+            logger.info("完成: %s", output.name)
+            return BuildResult(True, output_path=output)
+        except Exception as exc:
+            logger.error("%s 构建失败: %s", self.pack_type.upper(), exc)
+            logger.debug("构建异常", exc_info=True)
+            return BuildResult(False, error=str(exc))
+        finally:
+            for path in (self.work_dir, self.lyra_mod_path, partial):
+                safe_remove(path)
+            if self.pack_type == "apk":
+                safe_remove(tmp_apk)
+                safe_remove(signed_dir)
 
     def _recompile(self) -> Path:
         """重新编译APK"""
@@ -434,29 +247,8 @@ class ApkBuilder(PackageBuilder):
             ]
         )
 
-        # 查找签名后的APK
         for f in signed_dir.iterdir():
             if f.suffix == ".apk":
                 return f
 
         raise FileNotFoundError("签名后的APK未找到")
-
-
-def create_builder(task: BuildTask) -> PackageBuilder:
-    """创建打包构建器。"""
-    builders = {
-        "zip": ZipBuilder,
-        "apk": ApkBuilder,
-    }
-
-    builder_class = builders.get(task.pack_type.lower())
-    if not builder_class:
-        raise ValueError(f"不支持的包类型: {task.pack_type}")
-
-    return builder_class(task)
-
-
-def build_single(task: BuildTask) -> BuildResult:
-    """执行单个构建。"""
-    builder = create_builder(task)
-    return builder.build()

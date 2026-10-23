@@ -3,11 +3,11 @@
 import logging
 import tomllib
 from dataclasses import dataclass, field
+from functools import cache, cached_property
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# 默认配置目录
 DEFAULT_CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 
@@ -22,18 +22,6 @@ class Feature:
     skip: bool = False
     depends_on: list[str] = field(default_factory=list)
     conflicts_with: list[str] = field(default_factory=list)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "Feature":
-        return cls(
-            id=data["id"],
-            name=data.get("name", ""),
-            bit=data["bit"],
-            required=data.get("required", False),
-            skip=data.get("skip", False),
-            depends_on=data.get("depends_on", []),
-            conflicts_with=data.get("conflicts_with", []),
-        )
 
 
 @dataclass
@@ -66,14 +54,6 @@ class Replacement:
     pattern: str
     replacement: str
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "Replacement":
-        return cls(
-            file=data["file"],
-            pattern=data["pattern"],
-            replacement=data["replacement"],
-        )
-
 
 @dataclass
 class ImagePackConfig:
@@ -84,22 +64,6 @@ class ImagePackConfig:
     case_fixes: dict[str, str] = field(default_factory=dict)
     files_to_remove: list[str] = field(default_factory=list)
 
-    @classmethod
-    def from_dict(cls, name: str, data: dict, dolp_base: str = "") -> "ImagePackConfig":
-        # 替换 URL 中的模板变量
-        urls = []
-        for url in data.get("urls", []):
-            if "{dolp_base}" in url:
-                url = url.replace("{dolp_base}", dolp_base)
-            urls.append(url)
-
-        return cls(
-            name=name,
-            urls=urls,
-            case_fixes=data.get("case_fixes", {}),
-            files_to_remove=data.get("files_to_remove", []),
-        )
-
 
 @dataclass
 class ModloaderModConfig:
@@ -109,15 +73,6 @@ class ModloaderModConfig:
     github_repo: str
     asset_pattern: str
     release_tag: str = "latest"
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ModloaderModConfig":
-        return cls(
-            feature_id=data["feature_id"],
-            github_repo=data["github_repo"],
-            asset_pattern=data["asset_pattern"],
-            release_tag=data.get("release_tag", "latest"),
-        )
 
 
 @dataclass
@@ -132,31 +87,17 @@ class BaseModConfig:
     asset_pattern: str = "*.mod.zip"
     required: bool = False
 
-    @classmethod
-    def from_dict(cls, data: dict) -> "BaseModConfig":
-        return cls(
-            key=data["key"],
-            github_repo=data.get("github_repo", ""),
-            inject=data.get("inject", "add"),
-            replace_slot=data.get("replace_slot", 0),
-            name=data.get("name", data["key"]),
-            asset_pattern=data.get("asset_pattern", "*.mod.zip"),
-            required=data.get("required", False),
-        )
-
 
 @dataclass
 class BuildConfiguration:
     """完整构建配置"""
 
-    # URLs
     apktool_url: str
     apktool_sha256: str
     uber_apk_signer_url: str
     uber_apk_signer_sha256: str
     chs_repo_url: str
 
-    # Paths
     workspace_dir: str
     output_dir: str
     extract_dir: str
@@ -165,20 +106,15 @@ class BuildConfiguration:
     base_dir: str
     prepare_package_dir: str
 
-    # GitHub
     github_owner: str
     github_repo: str
 
-    # APK replacements
     apk_replacements: list[Replacement] = field(default_factory=list)
 
-    # Image packs
     imagepacks: dict[str, ImagePackConfig] = field(default_factory=dict)
 
-    # Modloader mods
     modloader_mods: list[ModloaderModConfig] = field(default_factory=list)
 
-    # Base mods (injection order)
     base_mods: list[BaseModConfig] = field(default_factory=list)
 
     @classmethod
@@ -188,22 +124,29 @@ class BuildConfiguration:
         github = data["github"]
         apk = data.get("apk", {})
 
-        # 解析 APK 替换规则
-        replacements = [Replacement.from_dict(r) for r in apk.get("replacements", [])]
+        replacements = [Replacement(**r) for r in apk.get("replacements", [])]
 
-        # 解析图片包配置
         dolp_base = urls["dolp_base"]
         imagepacks = {}
         for name, pack_data in data.get("imagepacks", {}).items():
-            imagepacks[name] = ImagePackConfig.from_dict(name, pack_data, dolp_base)
+            imagepacks[name] = ImagePackConfig(
+                **{
+                    **pack_data,
+                    "name": name,
+                    "urls": [
+                        url.replace("{dolp_base}", dolp_base)
+                        for url in pack_data.get("urls", [])
+                    ],
+                }
+            )
 
-        # 解析 modloader mod 配置
         modloader_mods = [
-            ModloaderModConfig.from_dict(m) for m in data.get("modloader_mods", [])
+            ModloaderModConfig(**m) for m in data.get("modloader_mods", [])
         ]
 
-        # 解析基础 mod 配置
-        base_mods = [BaseModConfig.from_dict(m) for m in data.get("base_mods", [])]
+        base_mods = [
+            BaseModConfig(**{"name": m["key"], **m}) for m in data.get("base_mods", [])
+        ]
 
         chs_repo = urls.get(
             "chs_repo", "Eltirosto/Degrees-of-Lewdity-Chinese-Localization"
@@ -232,68 +175,48 @@ class BuildConfiguration:
 
 
 class ConfigLoader:
-    """配置加载器"""
+    """同一配置目录只解析一次；不同目录互不影响。"""
 
-    def __init__(self, config_dir: Path | None = None):
-        self.config_dir = config_dir or DEFAULT_CONFIG_DIR
-        self._features: list[Feature] | None = None
-        self._combinations: CombinationsConfig | None = None
-        self._build: BuildConfiguration | None = None
+    def __init__(self, config_dir: Path):
+        self.config_dir = config_dir
 
     def _load_toml(self, filename: str) -> dict:
-        """加载 TOML 文件"""
         filepath = self.config_dir / filename
         if not filepath.exists():
-            logger.warning(f"配置文件不存在: {filepath}")
+            logger.warning("配置文件不存在: %s", filepath)
             return {}
+        with filepath.open("rb") as stream:
+            return tomllib.load(stream)
 
-        with open(filepath, "rb") as f:
-            return tomllib.load(f)
-
-    @property
+    @cached_property
     def features(self) -> list[Feature]:
-        """加载功能定义"""
-        if self._features is None:
-            data = self._load_toml("features.toml")
-            self._features = [Feature.from_dict(f) for f in data.get("features", [])]
-        return self._features
+        return [
+            Feature(**{"name": "", **item})
+            for item in self._load_toml("features.toml").get("features", [])
+        ]
 
-    @property
+    @cached_property
     def combinations(self) -> CombinationsConfig:
-        """加载组合配置"""
-        if self._combinations is None:
-            data = self._load_toml("combinations.toml")
-            self._combinations = CombinationsConfig.from_dict(data)
-        return self._combinations
+        return CombinationsConfig.from_dict(self._load_toml("combinations.toml"))
 
-    @property
+    @cached_property
     def build(self) -> BuildConfiguration:
-        """加载构建配置"""
-        if self._build is None:
-            data = self._load_toml("build.toml")
-            self._build = BuildConfiguration.from_dict(data)
-        return self._build
+        return BuildConfiguration.from_dict(self._load_toml("build.toml"))
 
     def get_feature_by_id(self, feature_id: str) -> Feature | None:
-        """通过ID获取功能"""
-        for f in self.features:
-            if f.id == feature_id:
-                return f
-        return None
+        return next(
+            (feature for feature in self.features if feature.id == feature_id), None
+        )
 
 
-# 全局配置加载器实例
-_config_loader: ConfigLoader | None = None
+@cache
+def _get_config_loader(config_dir: Path) -> ConfigLoader:
+    return ConfigLoader(config_dir)
 
 
 def get_config_loader(config_dir: Path | None = None) -> ConfigLoader:
-    """获取配置加载器实例"""
-    global _config_loader
-    if _config_loader is None or config_dir is not None:
-        _config_loader = ConfigLoader(config_dir)
-    return _config_loader
+    return _get_config_loader(Path(config_dir or DEFAULT_CONFIG_DIR).resolve())
 
 
 def load_build_config(config_dir: Path | None = None) -> BuildConfiguration:
-    """加载构建配置"""
     return get_config_loader(config_dir).build

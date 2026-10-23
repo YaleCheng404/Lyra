@@ -8,7 +8,6 @@ class ModCode(IntFlag):
 
     BESC = 1  # BEEESSS社区精灵合集
     CHEAT = 2  # 作弊功能
-    CSD = 4  # CSD
     SIDEVIEW_HIKARI = 32  # Hikari特写
     UCB = 256  # 通用战斗美化
     AU_FEMALE = 1024  # AU女性

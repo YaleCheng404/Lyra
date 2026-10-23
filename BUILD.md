@@ -2,14 +2,14 @@
 
 ## 环境
 
-CI 使用 Python 3.15.1、Temurin Java 25 LTS 和 Hugo 0.168.0。Java 用于 APK 解包、重建与签名；Hugo 仅用于生成下载站。完整构建建议使用 Linux 或 WSL，避免 Windows 文件名大小写冲突。
+CI 使用 Python 3.15.1、Temurin Java 25.0.5 和 Hugo 0.168.0。Java 用于 APK 解包、重建与签名；Hugo 仅用于生成下载站。完整构建建议使用 Linux 或 WSL，避免 Windows 文件名大小写冲突。Windows 使用 Temurin 25 系列中已提供的维护版，构建前通过 `java -version` 确认实际版本。
 
 ```sh
-python -m venv .venv
+uv venv --python 3.15.1 .venv
 # Linux / WSL
 . .venv/bin/activate
 # Windows PowerShell 使用 .venv/Scripts/Activate.ps1
-python -m pip install -r requirements.txt
+uv pip sync requirements.txt
 python main.py --help
 java -version
 ```
@@ -40,7 +40,7 @@ python main.py check --github-owner OWNER --github-repo REPO
 
 `build` 默认构建 ZIP 和 APK，包含配置启用的 polyfill 组合。当前配置共 8 个构建代码，对应 16 个 ZIP/APK 目标。修改组合应编辑配置文件。
 
-`prepare`、`warmup` 和 `build` 支持 `--workspace PATH`，默认当前目录。输出位于该目录下的 `output/`，基包和版本记录位于 `base/`，中间文件位于 `workspace/`。`page` 的输入和输出路径通过参数独立指定。APK 签名密钥始终从运行目录的 `dol.jks` 读取。
+`prepare`、`warmup`、`build` 和 `verify` 支持 `--workspace PATH`，默认当前目录。输出位于该目录下的 `output/`，基包和版本记录位于 `base/`，中间文件位于 `workspace/`。`page` 的输入和输出路径通过参数独立指定。APK 签名密钥始终从运行目录的 `dol.jks` 读取。
 
 `page` 支持 `--version` 或 `--tag`；仓库信息优先采用命令参数，其次采用 `GITHUB_REPOSITORY` 和配置。`check` 使用相同的仓库选择方式，另支持 `--source-repo OWNER/REPO` 与 `--github-output PATH`。
 
@@ -73,14 +73,17 @@ python scripts/modmagic.py remove game.html 0 2
 
 ## 依赖与检查
 
-运行环境以 `.python-version` 为准。`requirements.in` 声明直接依赖，`requirements.txt` 固定完整依赖；使用 uv 更新后，在干净环境中安装并检查。
+运行环境以 `.python-version` 为准。`requirements.in` 声明运行依赖，`requirements.txt` 固定完整依赖；`requirements-dev.in` 引用运行锁文件并声明 Playwright 和 uv，`requirements-dev.txt` 固定开发与浏览器检查环境。uv 使用 0.13.5 或更新正式版。
 
 ```sh
 uv pip compile requirements.in --universal --python-version 3.15.1 --upgrade --output-file requirements.txt
-python -m pip install -r requirements.txt
-python -m pip check
+uv pip compile requirements-dev.in --universal --python-version 3.15.1 --upgrade --output-file requirements-dev.txt
+uv pip sync requirements-dev.txt
+uv pip check
 python -m unittest discover -v
 python -m compileall -q main.py lyra scripts
+python -m playwright install chromium
+python scripts/browser_smoke.py output/普通版.zip output/兼容版.zip
 ```
 
 GitHub Actions 固定完整提交 SHA，Dependabot 每周检查 Python 和 Action 更新。Apktool 或签名工具升级时，需要同时更新 `config/build.toml` 中的官方下载 URL 和 SHA-256，并实际检查 APK 解包、重建及签名。下载站的 Hugo 版本在 Build workflow 中指定。
