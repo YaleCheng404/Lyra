@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""
-DoL-Lyra 构建系统
-
-统一的 CI 构建入口，提供以下命令：
-
-  prepare   - 下载并预处理游戏资源（生成基包）
-  warmup    - 预热美化资源（下载并解压所有美化包）
-  build     - 并行构建所有组合
-  page      - 生成下载页面
-  matrix    - 生成 GitHub Actions 构建矩阵
-  check     - 检查是否需要更新
-
-典型 CI 流程：
-  1. lyra prepare --tag v0.5.7.9-5.0.2a-0112
-  2. lyra warmup
-  3. lyra build --tag v0.5.7.9-5.0.2a-0112
-  4. lyra page --tag v0.5.7.9-5.0.2a-0112
-"""
+"""DoL-Lyra 构建系统。"""
 
 import argparse
 import json
@@ -24,9 +7,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
 
 from lyra import __version__
 from lyra.paths import BuildPaths
@@ -37,13 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 def cmd_prepare(args) -> int:
-    """
-    准备游戏资源命令
-
-    下载游戏文件、额外 mod，生成 ZIP 基包和 APK 解包目录。
-    """
+    """准备游戏资源命令。"""
     from lyra.downloader import Downloader
-    from lyra.prepare import GamePreparer as FullPreparer
+    from lyra.prepare import GamePreparer
 
     setup_logging(args.verbose)
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
@@ -71,7 +47,7 @@ def cmd_prepare(args) -> int:
         extra_mods["i18n"] = downloaded_files["i18n"]
 
     # 预处理
-    preparer = FullPreparer(paths)
+    preparer = GamePreparer(paths)
     preparer.prepare_all(downloaded_files, extra_mods)
 
     # 合并并保存版本信息
@@ -85,11 +61,7 @@ def cmd_prepare(args) -> int:
 
 
 def cmd_warmup(args) -> int:
-    """
-    预热美化资源命令
-
-    下载并解压所有美化资源，避免并行构建时的冲突。
-    """
+    """预热美化资源命令。"""
     from lyra.warmup import ResourceWarmer
 
     setup_logging(args.verbose)
@@ -113,11 +85,7 @@ def cmd_warmup(args) -> int:
 
 
 def cmd_build(args) -> int:
-    """
-    构建命令
-
-    并行构建所有 MOD 组合。
-    """
+    """构建命令。"""
     from lyra.parallel import build_all_parallel
 
     setup_logging(args.verbose)
@@ -149,9 +117,7 @@ def cmd_build(args) -> int:
 
 
 def cmd_page(args) -> int:
-    """
-    生成下载页面命令
-    """
+    """生成下载页面命令。"""
     from lyra.gen_page import generate_download_page
 
     setup_logging(args.verbose)
@@ -179,9 +145,7 @@ def cmd_page(args) -> int:
 
 
 def cmd_matrix(args) -> int:
-    """
-    生成构建矩阵命令（用于 GitHub Actions）
-    """
+    """生成构建矩阵命令（用于 GitHub Actions）。"""
     from lyra.combo import CombinationCalculator
 
     calculator = CombinationCalculator()
@@ -203,9 +167,7 @@ def cmd_matrix(args) -> int:
 
 
 def cmd_list(args) -> int:
-    """
-    列出所有 MOD 组合
-    """
+    """列出所有 MOD 组合。"""
     from lyra.combo import CombinationCalculator
 
     calculator = CombinationCalculator()
@@ -214,9 +176,7 @@ def cmd_list(args) -> int:
 
 
 def cmd_check(args) -> int:
-    """
-    检查是否需要更新
-    """
+    """检查是否需要更新。"""
     from lyra.config_loader import load_build_config
     from lyra.updater import check_chs_update
 
@@ -395,7 +355,7 @@ def main():
         return 130
     except Exception as e:
         logger.error(f"执行失败: {e}")
-        if args.verbose if hasattr(args, "verbose") else False:
+        if getattr(args, "verbose", False):
             import traceback
 
             traceback.print_exc()

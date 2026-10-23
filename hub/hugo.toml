@@ -1,6 +1,6 @@
 baseURL = "/"
 title = "DoL-Lyra Hub"
-languageCode = "zh-cn"
+locale = "zh-CN"
 defaultContentLanguage = "zh-cn"
 enableRobotsTXT = true
 

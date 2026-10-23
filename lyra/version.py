@@ -1,8 +1,4 @@
-"""
-版本信息管理模块
-
-统一管理构建过程中的版本信息记录。
-"""
+"""版本信息管理模块。"""
 
 import json
 import logging
@@ -15,12 +11,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class LyraVersion:
-    """
-    Lyra版本信息
-
-    从tag字符串解析，格式: v{dol_ver}-{chs_ver}-{date}
-    例如: v0.5.7.9-5.0.2a-0112
-    """
+    """Lyra版本信息。"""
 
     dol_ver: str  # DoL版本号，如 0.5.7.9
     chs_ver: str  # 汉化版本号，如 5.0.2a
@@ -28,18 +19,7 @@ class LyraVersion:
 
     @classmethod
     def from_tag(cls, tag: str) -> "LyraVersion":
-        """
-        从tag字符串解析版本信息
-
-        Args:
-            tag: 版本tag，格式如 v0.5.7.9-5.0.2a-0112
-
-        Returns:
-            LyraVersion实例
-
-        Raises:
-            ValueError: 如果tag格式不正确
-        """
+        """从tag字符串解析版本信息。"""
         match = re.fullmatch(
             r"v?(?P<dol>\d+(?:\.\d+){3})-(?P<chs>\d+(?:\.\d+){2}[0-9A-Za-z]*)-(?P<date>\d{4})",
             tag,
@@ -59,11 +39,7 @@ class LyraVersion:
 
 @dataclass
 class VersionInfo:
-    """
-    资源版本信息记录
-
-    用于记录各种资源（汉化仓库、美化包等）的版本信息。
-    """
+    """资源版本信息记录。"""
 
     name: str  # 资源名称
     version: str  # 版本号
@@ -97,11 +73,7 @@ class VersionInfo:
 
 @dataclass
 class VersionRegistry:
-    """
-    版本信息注册表
-
-    用于收集和管理构建过程中的所有版本信息。
-    """
+    """版本信息注册表。"""
 
     versions: list[VersionInfo] = field(default_factory=list)
 
@@ -123,12 +95,7 @@ class VersionRegistry:
             self.add(info)
 
     def save(self, path: Path):
-        """
-        保存版本信息到JSON文件
-
-        Args:
-            path: 保存路径
-        """
+        """保存版本信息到JSON文件。"""
         data = [v.to_dict() for v in self.versions]
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
@@ -137,15 +104,7 @@ class VersionRegistry:
 
     @classmethod
     def load(cls, path: Path) -> "VersionRegistry":
-        """
-        从JSON文件加载版本信息
-
-        Args:
-            path: 文件路径
-
-        Returns:
-            VersionRegistry实例
-        """
+        """从JSON文件加载版本信息。"""
         if not path.exists():
             logger.warning(f"版本信息文件不存在: {path}")
             return cls()

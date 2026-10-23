@@ -1,10 +1,5 @@
-"""
-MOD组合计算模块
+"""MOD组合计算模块。"""
 
-根据配置文件中的规则计算有效的MOD组合，用于批量构建和生成下载页面。
-"""
-
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,8 +8,6 @@ from .config_loader import (
     Feature,
     get_config_loader,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -47,22 +40,9 @@ class CombinationCalculator:
     """MOD组合计算器（配置驱动）"""
 
     def __init__(self, config_dir: Path | None = None):
-        """
-        初始化计算器
-
-        Args:
-            config_dir: 配置目录路径，默认使用项目的 config 目录
-        """
+        """初始化计算器。"""
         self.loader = get_config_loader(config_dir)
-        self._feature_map: dict[str, Feature] = {}
-        self._bit_to_feature: dict[int, Feature] = {}
-        self._build_feature_maps()
-
-    def _build_feature_maps(self):
-        """构建功能映射"""
-        for feature in self.loader.features:
-            self._feature_map[feature.id] = feature
-            self._bit_to_feature[feature.bit] = feature
+        self._feature_map = {feature.id: feature for feature in self.loader.features}
 
     @property
     def features(self) -> list[Feature]:
@@ -94,12 +74,7 @@ class CombinationCalculator:
         return bool(value & bit)
 
     def _check_dependencies(self, value: int) -> bool:
-        """
-        检查依赖关系
-
-        Returns:
-            True 如果所有依赖都满足，False 否则
-        """
+        """检查依赖关系。"""
         for feature in self.features:
             if not self._has_bit(value, feature.bit):
                 continue
@@ -112,12 +87,7 @@ class CombinationCalculator:
         return True
 
     def _check_conflicts(self, value: int) -> bool:
-        """
-        检查冲突关系
-
-        Returns:
-            True 如果没有冲突，False 否则
-        """
+        """检查冲突关系。"""
         for feature in self.features:
             if not self._has_bit(value, feature.bit):
                 continue
@@ -178,15 +148,7 @@ class CombinationCalculator:
         return "+".join(parts) if parts else "基础"
 
     def calculate(self, include_polyfill: bool = True) -> list[ModCombination]:
-        """
-        计算所有有效的MOD组合
-
-        Args:
-            include_polyfill: 是否包含polyfill版本
-
-        Returns:
-            有效组合列表
-        """
+        """计算所有有效的MOD组合。"""
         combinations = []
         config = self.combinations_config
 
@@ -228,15 +190,7 @@ class CombinationCalculator:
         return combinations
 
     def get_build_codes(self, include_polyfill: bool = True) -> list[str]:
-        """
-        获取用于构建的code列表（字符串格式）
-
-        Args:
-            include_polyfill: 是否包含polyfill版本
-
-        Returns:
-            code字符串列表，polyfill格式为 "polyfill-N"
-        """
+        """获取用于构建的code列表（字符串格式）。"""
         combinations = self.calculate(include_polyfill=include_polyfill)
         codes = []
 
@@ -248,15 +202,8 @@ class CombinationCalculator:
 
         return codes
 
-    def to_string(self, include_polyfill: bool = False) -> str:
-        """生成组合详情字符串（用于组合对照）
-
-        Args:
-            include_polyfill: 是否包含 polyfill 版本，默认不包含
-
-        Returns:
-            格式化的组合对照字符串
-        """
+    def to_string(self) -> str:
+        """生成组合详情字符串（用于组合对照）。"""
         combinations = self.calculate(include_polyfill=False)  # 组合对照不包含 polyfill
         lines = []
 
@@ -279,15 +226,3 @@ class CombinationCalculator:
         lines.append(f"{codes}")
 
         return "\n".join(lines)
-
-
-def get_default_combinations(config_dir: Path | None = None) -> list[ModCombination]:
-    """获取默认的MOD组合列表"""
-    calculator = CombinationCalculator(config_dir)
-    return calculator.calculate()
-
-
-def get_default_build_codes(config_dir: Path | None = None) -> list[str]:
-    """获取默认的构建code列表"""
-    calculator = CombinationCalculator(config_dir)
-    return calculator.get_build_codes()

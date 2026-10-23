@@ -1,58 +1,32 @@
-### Node ###
-# Dependency directories
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.ruff_cache/
 
-### Hugo ###
-# Generated files by hugo
-**/public/
-**/resources/_gen/
-
-# Executable may be added to repository
-hugo.exe
-hugo.darwin
-hugo.linux
-
-# Temporary lock file while building
+# Generated site and packages
+public/
+resources/
 .hugo_build.lock
-
-### Congo ###
-# Lighthouse generated output
-.lighthouseci
-
-# Project specific files
-TODO
-
-### DoL-Lyra Build ###
-# Build output directories
 output/
-pairs/
-
-# Workspace directory (contains all temporary files)
 workspace/
-workspace
-
-# Build artifacts
+base/
+pairs/
+dist/
+build/
 *.apk
 *.zip
 *.jar
+
+# Signing keys and local settings
 dol.jks
-apktool.jar
-uber-apk-signer.jar
-
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-.venv/
-
+dol.jks.b64
 my.secrets
-.vscode
-DoL-ModLoader*
-tests/
-!lyra/tests/
-base/
+.vscode/
+DoL-ModLoader*/
+
+# Local review artifacts
+.codex_security_artifacts/
+.codex_security_hardening/
+.codex_security_writeups/

@@ -2,8 +2,8 @@
 
 [urls]
 # 工具下载地址
-apktool = "https://github.com/iBotPeaches/Apktool/releases/download/v2.12.0/apktool_2.12.0.jar"
-apktool_sha256 = "effb69dab2f93806cafc0d232f6be32c2551b8d51c67650f575e46c016908fdd"
+apktool = "https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar"
+apktool_sha256 = "dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423"
 uber_apk_signer = "https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
 uber_apk_signer_sha256 = "e1299fd6fcf4da527dd53735b56127e8ea922a321128123b9c32d619bba1d835"
 
@@ -68,7 +68,6 @@ replacement = "cordova.plugins.saveDialog.saveFile("
 
 # 图片包配置
 [imagepacks.besc]
-name = "besc"
 urls = [
     "{dolp_base}/dolp",
     "{dolp_base}/b3s",
@@ -81,7 +80,6 @@ urls = [
 "img/hair/sides/messy ponytail/Shoulder.png" = "img/hair/sides/messy ponytail/shoulder.png"
 
 [imagepacks.hikari]
-name = "hikari"
 urls = ["{dolp_base}/b3s_hikfem", "{dolp_base}/b3s_hikfemsubs"]
 files_to_remove = [
     "img/hair/fringe/Messy curls",
@@ -89,11 +87,9 @@ files_to_remove = [
 ]
 
 [imagepacks.goose]
-name = "goose"
 urls = ["{dolp_base}/dolp", "{dolp_base}/goosefem", "{dolp_base}/goosefemsubs"]
 
 [imagepacks.ucb]
-name = "ucb"
 urls = ["{dolp_base}/mysterious"]
 files_to_remove = [
     "img/sex/missionary/active/virginkiller/chest.png",
@@ -123,7 +119,6 @@ release_tag = "mod"
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
 # github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）
-# feature_id: 关联的 feature ID（可选）
 # inject: 注入方式，"add" 追加（默认） / "replace" 替换指定 slot
 # replace_slot: 替换的 slot 索引（仅 inject="replace" 时有效）
 
@@ -138,10 +133,8 @@ key = "i18n"
 
 [[base_mods]]
 key = "cheat"
-feature_id = "cheat_csd"
 github_repo = "DoL-Lyra/Cheat"
 
 [[base_mods]]
 key = "csd"
-feature_id = "cheat_csd"
 github_repo = "DoL-Lyra/CombatStatusDisplay"

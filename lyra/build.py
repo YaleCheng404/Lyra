@@ -1,9 +1,4 @@
-"""
-简化构建模块
-
-假设所有资源已通过 warmup 预热，只负责资源复制和打包。
-专为CI流程设计，不包含资源下载逻辑。
-"""
+"""ZIP 与 APK 打包。"""
 
 import logging
 import shutil
@@ -32,11 +27,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BuildTask:
-    """
-    构建任务
-
-    定义单个构建任务的所有参数。
-    """
+    """构建任务。"""
 
     pack_type: str  # zip 或 apk
     mod_code: int  # MOD代码
@@ -62,15 +53,7 @@ class BuildTask:
         version: LyraVersion | None = None,
         paths: BuildPaths | None = None,
     ) -> "BuildTask":
-        """
-        从代码字符串创建任务
-
-        Args:
-            code_str: 代码字符串，如 "3" 或 "polyfill-3"
-            pack_type: 包类型
-            version: 版本信息
-            paths: 路径管理器
-        """
+        """从代码字符串创建任务。"""
         is_polyfill = code_str.startswith("polyfill-")
         mod_code = int(code_str.replace("polyfill-", ""))
         return cls(
@@ -92,30 +75,12 @@ class BuildResult:
     error: str | None = None
     applied_mods: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
-        return {
-            "success": self.success,
-            "output_path": str(self.output_path) if self.output_path else None,
-            "output_name": self.output_name,
-            "error": self.error,
-            "applied_mods": self.applied_mods,
-        }
-
 
 class PackageBuilder(ABC):
-    """
-    打包构建器基类
-
-    假设所有资源已通过 warmup 预热到 temp 目录。
-    """
+    """打包构建器基类。"""
 
     def __init__(self, task: BuildTask):
-        """
-        初始化构建器
-
-        Args:
-            task: 构建任务
-        """
+        """初始化构建器。"""
         self.task = task
         self.paths = task.paths
         self.mod_code = ModCode(task.mod_code)
@@ -124,19 +89,16 @@ class PackageBuilder(ABC):
     @abstractmethod
     def pack_type(self) -> str:
         """包类型"""
-        pass
 
     @property
     @abstractmethod
     def img_path(self) -> Path:
         """图片目录路径（相对于工作目录）"""
-        pass
 
     @property
     @abstractmethod
     def html_path(self) -> Path:
         """HTML 文件路径（相对于工作目录）"""
-        pass
 
     @property
     def work_dir(self) -> Path:
@@ -172,14 +134,7 @@ class PackageBuilder(ABC):
         return f"{prefix}-{date_str}.{self.pack_type}"
 
     def _apply_beautify(self) -> list[str]:
-        """
-        应用预热的美化资源
-
-        直接从 temp 目录复制已处理好的资源。
-
-        Returns:
-            应用的MOD名称列表
-        """
+        """应用预热的美化资源。"""
         applied = []
 
         # 美化资源映射
@@ -213,15 +168,7 @@ class PackageBuilder(ABC):
         return applied
 
     def _inject_modloader_mods(self) -> list[str]:
-        """
-        注入 modloader mod 到 HTML
-
-        根据配置，将匹配当前 mod_code 的 modloader mod 注入到
-        HTML 的 modDataValueZipList 中。
-
-        Returns:
-            注入的MOD名称列表
-        """
+        """注入 modloader mod 到 HTML。"""
         build_config = load_build_config()
         if not build_config.modloader_mods:
             return []
@@ -246,18 +193,13 @@ class PackageBuilder(ABC):
                     logger.warning(f"mod 文件不存在: {mod_path}")
 
         if mod_paths:
-            injector = ModInjector(self.paths)
+            injector = ModInjector()
             injector.add_mods(self.html_path, mod_paths)
 
         return applied
 
     def _inject_lyra_mod(self):
-        """
-        构建并注入 Lyra 信息 mod
-
-        从 versions.json 加载完整版本信息（包含 prepare 和 warmup 阶段），
-        构建 Lyra mod 并注入到 HTML 中。
-        """
+        """构建并注入 Lyra 信息 mod。"""
         # 加载完整版本信息
         registry = VersionRegistry.load(self.paths.versions_file)
 
@@ -271,13 +213,12 @@ class PackageBuilder(ABC):
         build_lyra_mod(lyra_mod_path, self.task.version, list(registry), mod_suffix)
 
         # 注入到 HTML
-        injector = ModInjector(self.paths)
+        injector = ModInjector()
         injector.add_mods(self.html_path, [lyra_mod_path])
 
     @abstractmethod
     def build(self) -> BuildResult:
         """执行构建"""
-        pass
 
 
 class ZipBuilder(PackageBuilder):
@@ -477,6 +418,7 @@ class ApkBuilder(PackageBuilder):
         run_command(
             [
                 "java",
+                "--enable-native-access=ALL-UNNAMED",
                 "-jar",
                 str(apksign_path),
                 "-a",
@@ -503,15 +445,7 @@ class ApkBuilder(PackageBuilder):
 
 
 def create_builder(task: BuildTask) -> PackageBuilder:
-    """
-    创建打包构建器
-
-    Args:
-        task: 构建任务
-
-    Returns:
-        对应类型的构建器
-    """
+    """创建打包构建器。"""
     builders = {
         "zip": ZipBuilder,
         "apk": ApkBuilder,
@@ -525,14 +459,6 @@ def create_builder(task: BuildTask) -> PackageBuilder:
 
 
 def build_single(task: BuildTask) -> BuildResult:
-    """
-    执行单个构建
-
-    Args:
-        task: 构建任务
-
-    Returns:
-        构建结果
-    """
+    """执行单个构建。"""
     builder = create_builder(task)
     return builder.build()

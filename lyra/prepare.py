@@ -1,13 +1,9 @@
-"""
-预处理模块
+"""预处理模块。"""
 
-处理APK反编译、mod注入等预处理任务。
-"""
-
-import json
 import logging
-import re
 from pathlib import Path
+
+from scripts.modmagic import add_mods_to_html, replace_mod_by_id
 
 from .config_loader import load_build_config
 from .paths import BuildPaths
@@ -24,33 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 class ApkProcessor:
-    """
-    APK 处理器
-
-    负责 APK 的反编译、配置修改等操作。
-    """
+    """APK 处理器。"""
 
     def __init__(self, paths: BuildPaths):
-        """
-        初始化 APK 处理器
-
-        Args:
-            paths: 路径管理器
-        """
+        """初始化 APK 处理器。"""
         self.paths = paths
         self.config = load_build_config()
 
     def decompile(self, apk_path: Path, dest_dir: Path) -> Path:
-        """
-        反编译 APK
-
-        Args:
-            apk_path: APK 文件路径
-            dest_dir: 目标目录
-
-        Returns:
-            解压后的目录路径
-        """
+        """反编译 APK。"""
         logger.info(f"反编译 APK: {apk_path}")
 
         if dest_dir.exists():
@@ -72,12 +50,7 @@ class ApkProcessor:
         return dest_dir
 
     def apply_replacements(self, apk_dir: Path):
-        """
-        应用配置中的替换规则
-
-        Args:
-            apk_dir: 已解包的 APK 目录
-        """
+        """应用配置中的替换规则。"""
         logger.info("应用 APK 配置替换...")
 
         # 按文件分组替换规则
@@ -107,132 +80,15 @@ class ApkProcessor:
 
 
 class ModInjector:
-    """
-    Mod 注入器
+    """Mod 注入器。"""
 
-    向 HTML 文件注入 mod。
-    """
-
-    def __init__(self, paths: BuildPaths):
-        """
-        初始化 Mod 注入器
-
-        Args:
-            paths: 路径管理器
-        """
-        self.paths = paths
-
-    def add_mods(self, html_path: Path, mod_paths: list[Path]):
-        """
-        向 HTML 文件添加 mod
-
-        Args:
-            html_path: HTML 文件路径
-            mod_paths: mod 文件路径列表（按加载顺序）
-        """
-        import base64
-
-        # 过滤存在的 mod 文件
-        existing_mods = [p for p in mod_paths if p and p.exists()]
-
-        if not existing_mods:
-            logger.warning("没有可添加的 mod 文件")
-            return
-
-        logger.info(f"向 {html_path.name} 添加 {len(existing_mods)} 个 mod...")
-
-        # 读取 HTML 内容
-        content = html_path.read_text(encoding="utf-8")
-
-        # 提取现有的 modDataValueZipList
-        pattern = r"window\.modDataValueZipList\s*=\s*(\[.*?\]);"
-        match = re.search(pattern, content, re.DOTALL)
-
-        if not match:
-            logger.error("HTML 文件中未找到 modDataValueZipList")
-            return
-
-        existing_list = json.loads(match.group(1))
-
-        # 加载新的 mod 文件
-        for mod_path in existing_mods:
-            with open(mod_path, "rb") as f:
-                base64_data = base64.b64encode(f.read()).decode("utf-8")
-                existing_list.append(base64_data)
-                logger.debug(f"  添加: {mod_path.name}")
-
-        # 替换 modDataValueZipList
-        new_content = re.sub(
-            pattern,
-            f"window.modDataValueZipList = {json.dumps(existing_list)};",
-            content,
-            flags=re.DOTALL,
-        )
-
-        html_path.write_text(new_content, encoding="utf-8")
-        logger.info(f"  完成: 共 {len(existing_list)} 个 mod")
-
-    def replace_mod(self, html_path: Path, mod_id: int, mod_path: Path):
-        """
-        替换 HTML 文件中指定 ID 的 mod
-
-        Args:
-            html_path: HTML 文件路径
-            mod_id: 要替换的 mod ID（从 0 开始）
-            mod_path: 新 mod 文件路径
-        """
-        import base64
-
-        if not mod_path.exists():
-            logger.warning(f"mod 文件不存在: {mod_path}")
-            return
-
-        logger.info(f"替换 {html_path.name} 的 mod ID {mod_id}")
-
-        # 读取 HTML 内容
-        content = html_path.read_text(encoding="utf-8")
-
-        # 提取现有的 modDataValueZipList
-        pattern = r"window\.modDataValueZipList\s*=\s*(\[.*?\]);"
-        match = re.search(pattern, content, re.DOTALL)
-
-        if not match:
-            logger.error("HTML 文件中未找到 modDataValueZipList")
-            return
-
-        existing_list = json.loads(match.group(1))
-
-        if mod_id < 0 or mod_id >= len(existing_list):
-            logger.error(
-                f"无效的 mod ID: {mod_id}，有效范围: 0-{len(existing_list) - 1}"
-            )
-            return
-
-        # 加载新的 mod 文件
-        with open(mod_path, "rb") as f:
-            base64_data = base64.b64encode(f.read()).decode("utf-8")
-            existing_list[mod_id] = base64_data
-
-        # 替换 modDataValueZipList
-        new_content = re.sub(
-            pattern,
-            f"window.modDataValueZipList = {json.dumps(existing_list)};",
-            content,
-            flags=re.DOTALL,
-        )
-
-        html_path.write_text(new_content, encoding="utf-8")
+    add_mods = staticmethod(add_mods_to_html)
+    replace_mod = staticmethod(replace_mod_by_id)
 
     def patch_modloader_code(self, html_path: Path):
-        """
-        修改 HTML 文件中 ModLoader 的 JavaScript 代码
-
-        Args:
-            html_path: HTML 文件路径
-        """
+        """修改 HTML 文件中 ModLoader 的 JavaScript 代码。"""
         if not html_path.exists():
-            logger.warning(f"HTML 文件不存在: {html_path}")
-            return
+            raise FileNotFoundError(html_path)
 
         try:
             content = html_path.read_text(encoding="utf-8")
@@ -251,26 +107,17 @@ class ModInjector:
                 logger.debug(f"  未找到需要修补的代码: {html_path.name}")
 
         except Exception as e:
-            logger.error(f"修补 ModLoader 代码失败: {e}")
+            raise RuntimeError(f"修补 ModLoader 代码失败: {html_path}") from e
 
 
 class GamePreparer:
-    """
-    游戏资源预处理器
-
-    完成从下载到生成基包的完整流程。
-    """
+    """游戏资源预处理器。"""
 
     def __init__(self, paths: BuildPaths):
-        """
-        初始化预处理器
-
-        Args:
-            paths: 路径管理器
-        """
+        """初始化预处理器。"""
         self.paths = paths
         self.apk_processor = ApkProcessor(paths)
-        self.mod_injector = ModInjector(paths)
+        self.mod_injector = ModInjector()
         self.registry = VersionRegistry()
 
     def prepare_all(
@@ -278,16 +125,7 @@ class GamePreparer:
         downloaded_files: dict[str, Path],
         extra_mods: dict[str, Path],
     ) -> VersionRegistry:
-        """
-        完整的预处理流程
-
-        Args:
-            downloaded_files: 下载的游戏文件
-            extra_mods: 额外的 mod 文件
-
-        Returns:
-            版本信息注册表
-        """
+        """完整的预处理流程。"""
         logger.info("========== 开始游戏预处理 ==========")
 
         # 准备 ZIP 基包
@@ -358,16 +196,11 @@ class GamePreparer:
         extra_mods: dict[str, Path],
     ):
         """准备 APK"""
-        if "apk" not in downloaded_files:
-            logger.warning("未找到 APK 文件")
-            return
-
-        apk_path = downloaded_files["apk"]
-
-        # 处理普通版和 polyfill 版 APK
-        for polyfill in [False, True]:
+        for key, polyfill in (("apk", False), ("polyfill_apk", True)):
+            if key not in downloaded_files:
+                raise FileNotFoundError(f"未找到上游资源: {key}")
             self._process_apk_version(
-                apk_path,
+                downloaded_files[key],
                 downloaded_files.get("image_pack"),
                 extra_mods,
                 polyfill=polyfill,
@@ -404,16 +237,7 @@ class GamePreparer:
         logger.info(f"  APK 目录已准备: {apk_dir}")
 
     def _inject_mods(self, html_path: Path, extra_mods: dict[str, Path]):
-        """
-        向 HTML 文件注入所有基础 mod
-
-        按 build.toml 中 base_mods 的配置顺序处理，
-        根据 inject 字段决定替换（replace 指定 slot）或追加（add）。
-
-        Args:
-            html_path: HTML 文件路径
-            extra_mods: 额外的 mod 文件
-        """
+        """向 HTML 文件注入所有基础 mod。"""
         build_config = load_build_config()
 
         mods_to_add = []
@@ -440,13 +264,17 @@ class GamePreparer:
         extract_zip(image_pack_path, temp_dir)
 
         # 查找 img 目录
-        img_src = temp_dir / "img" if (temp_dir / "img").exists() else next(
-            (
-                d / "img"
-                for d in temp_dir.iterdir()
-                if d.is_dir() and (d / "img").exists()
-            ),
-            None,
+        img_src = (
+            temp_dir / "img"
+            if (temp_dir / "img").exists()
+            else next(
+                (
+                    d / "img"
+                    for d in temp_dir.iterdir()
+                    if d.is_dir() and (d / "img").exists()
+                ),
+                None,
+            )
         )
 
         if img_src:

@@ -1,8 +1,4 @@
-"""
-Lyra 信息 mod 构建模块
-
-生成一个仅用于显示版本信息的 mod，包含 boot.json 和 README.md。
-"""
+"""Lyra 信息 mod 构建模块。"""
 
 import json
 import logging
@@ -20,20 +16,7 @@ def build_lyra_mod(
     version_info: list[VersionInfo] | None = None,
     mod_suffix: str = "",
 ) -> Path:
-    """
-    构建 Lyra 信息 mod
-
-    生成一个仅用于显示版本信息的 mod.zip 文件。
-
-    Args:
-        output_path: 输出文件路径
-        version: Lyra 版本信息
-        version_info: 资源版本信息列表
-        mod_suffix: MOD 组合后缀（如 "goose-ucb"）
-
-    Returns:
-        生成的 mod.zip 文件路径
-    """
+    """构建 Lyra 信息 mod。"""
     version_str = str(version).lstrip("v") if version else "unknown"
     if mod_suffix:
         version_str = f"{version_str}-{mod_suffix}"
@@ -68,20 +51,10 @@ def build_lyra_mod(
 def _generate_readme(
     version_str: str,
     version_info: list[VersionInfo],
-    mod_suffix: str = "",
 ) -> str:
-    """
-    生成 README.md 内容
-
-    Args:
-        version_str: Lyra 版本字符串
-        version_info: 资源版本信息列表
-        mod_suffix: MOD 组合后缀（如 "goose-ucb"）
-    Returns:
-        README.md 内容
-    """
+    """生成 README.md 内容。"""
     lines = [
-        f"# Lyra {version_str} {mod_suffix}",
+        f"# Lyra {version_str}",
         "",
         "此 mod 为 Lyra 整合包的信息标识，不包含实质功能。",
         "",

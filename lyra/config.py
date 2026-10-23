@@ -1,8 +1,4 @@
-"""
-配置管理模块
-
-集中管理 MOD 代码定义。
-"""
+"""配置管理模块。"""
 
 from enum import IntFlag
 
@@ -23,24 +19,6 @@ class ModCode(IntFlag):
     AU_FEMALE = 1024  # AU女性
     AU_MALE = 2048  # AU男性
     AU_ANDROGYNOUS = 4096  # AU双性
-
-    @classmethod
-    def from_string(cls, code_str: str) -> tuple["ModCode", bool]:
-        """
-        从字符串解析MOD代码
-
-        Args:
-            code_str: MOD代码字符串，可以是数字或 "polyfill-数字" 格式
-
-        Returns:
-            (ModCode, is_polyfill) 元组
-        """
-        is_polyfill = False
-        if code_str.startswith("polyfill-"):
-            is_polyfill = True
-            code_str = code_str.split("-")[1]
-
-        return cls(int(code_str)), is_polyfill
 
     def get_suffix(self) -> str:
         """获取基于MOD代码的文件名后缀"""
@@ -68,14 +46,3 @@ class ModCode(IntFlag):
             suffix_parts.append("ucb")
 
         return "-".join(suffix_parts) if suffix_parts else ""
-
-
-def get_build_matrix() -> list[str]:
-    """
-    获取构建矩阵（用于GitHub Actions）
-
-    动态计算有效的MOD组合代码列表。
-    """
-    from .combo import get_default_build_codes
-
-    return get_default_build_codes()

@@ -1,8 +1,4 @@
-"""
-工具函数模块
-
-提供文件操作、下载、压缩等通用功能。
-"""
+"""工具函数模块。"""
 
 import hashlib
 import logging
@@ -15,7 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 import requests
-from packaging.version import Version, parse as parse_version
+from packaging.version import Version
+from packaging.version import parse as parse_version
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
@@ -34,18 +31,7 @@ def setup_logging(verbose: bool = False):
 def download_file(
     url: str, dest: Path, quiet: bool = False, expected_sha256: str | None = None
 ) -> Path:
-    """
-    下载文件到指定路径
-
-    Args:
-        url: 下载URL
-        dest: 目标路径
-        quiet: 是否静默模式
-        expected_sha256: 可选的 SHA-256 校验值
-
-    Returns:
-        下载的文件路径
-    """
+    """下载文件到指定路径。"""
     expected_sha256 = (
         expected_sha256.removeprefix("sha256:").lower() if expected_sha256 else None
     )
@@ -97,16 +83,7 @@ def download_file(
 
 
 def extract_zip(zip_path: Path, dest_dir: Path) -> Path:
-    """
-    解压ZIP文件
-
-    Args:
-        zip_path: ZIP文件路径
-        dest_dir: 目标目录
-
-    Returns:
-        解压目录
-    """
+    """解压ZIP文件。"""
     logger.info(f"解压ZIP: {zip_path} -> {dest_dir}")
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -117,16 +94,7 @@ def extract_zip(zip_path: Path, dest_dir: Path) -> Path:
 
 
 def create_zip(source_dir: Path, dest_path: Path) -> Path:
-    """
-    创建ZIP压缩包
-
-    Args:
-        source_dir: 源目录
-        dest_path: 目标ZIP文件路径
-
-    Returns:
-        ZIP文件路径
-    """
+    """创建ZIP压缩包。"""
     logger.info(f"创建ZIP: {source_dir} -> {dest_path}")
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -140,17 +108,7 @@ def create_zip(source_dir: Path, dest_path: Path) -> Path:
 
 
 def extract_tar_gz(tar_path: Path, dest_dir: Path, strip_components: int = 0) -> Path:
-    """
-    解压tar.gz文件
-
-    Args:
-        tar_path: tar.gz文件路径
-        dest_dir: 目标目录
-        strip_components: 跳过的目录层级数
-
-    Returns:
-        解压目录
-    """
+    """解压tar.gz文件。"""
     logger.info(f"解压tar.gz: {tar_path} -> {dest_dir}")
     dest_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,60 +135,14 @@ def _safe_tar_name(name: str, strip_components: int) -> str | None:
     return str(PurePosixPath(*parts)) if parts else None
 
 
-def copy_directory(src: Path, dest: Path, overwrite: bool = True):
-    """
-    复制目录内容
-
-    Args:
-        src: 源目录
-        dest: 目标目录
-        overwrite: 是否覆盖已存在的文件
-    """
+def copy_directory(src: Path, dest: Path):
+    """合并目录内容，后复制的资源覆盖同名文件。"""
     logger.debug(f"复制目录: {src} -> {dest}")
-
-    for item in src.rglob("*"):
-        if item.is_file():
-            rel_path = item.relative_to(src)
-            dest_path = dest / rel_path
-
-            if dest_path.exists() and not overwrite:
-                continue
-
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(item, dest_path)
-
-
-def safe_move(src: Path, dest: Path) -> bool:
-    """
-    安全移动文件（处理文件名大小写问题）
-
-    Args:
-        src: 源路径
-        dest: 目标路径
-
-    Returns:
-        是否成功
-    """
-    try:
-        if src.exists():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dest))
-            return True
-    except Exception as e:
-        logger.warning(f"移动文件失败 {src} -> {dest}: {e}")
-    return False
+    shutil.copytree(src, dest, dirs_exist_ok=True)
 
 
 def safe_remove(path: Path) -> bool:
-    """
-    安全删除文件或目录
-
-    Args:
-        path: 要删除的路径
-
-    Returns:
-        是否成功
-    """
+    """安全删除文件或目录。"""
     try:
         if path.exists():
             if path.is_dir():
@@ -249,18 +161,7 @@ def run_command(
     capture_output: bool = False,
     check: bool = True,
 ) -> subprocess.CompletedProcess:
-    """
-    运行外部命令
-
-    Args:
-        cmd: 命令及参数列表
-        cwd: 工作目录
-        capture_output: 是否捕获输出
-        check: 是否检查返回码
-
-    Returns:
-        CompletedProcess对象
-    """
+    """运行外部命令。"""
     logger.debug(f"运行命令: {' '.join(cmd)}")
     return subprocess.run(
         cmd, cwd=cwd, capture_output=capture_output, check=check, text=True
@@ -268,28 +169,14 @@ def run_command(
 
 
 def get_file_hash(path: Path, algorithm: str = "md5") -> str:
-    """
-    计算文件哈希值
-
-    Args:
-        path: 文件路径
-        algorithm: 哈希算法 (md5, sha256等)
-
-    Returns:
-        哈希值字符串
-    """
-    hasher = hashlib.new(algorithm)
+    """计算文件哈希值。"""
     with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+        return hashlib.file_digest(f, algorithm).hexdigest()
 
 
 @dataclass
 class GitHubReleaseAsset:
-    """
-    GitHub Release 资源信息
-    """
+    """GitHub Release 资源信息。"""
 
     url: str
     name: str
@@ -300,17 +187,7 @@ class GitHubReleaseAsset:
 def get_github_release_asset(
     repo: str, asset_pattern: str, tag: str = "latest"
 ) -> GitHubReleaseAsset | None:
-    """
-    从 GitHub Release 获取资源信息
-
-    Args:
-        repo: 仓库名称，格式为 "owner/repo"
-        asset_pattern: 资源文件名模式（用于匹配）
-        tag: release tag，默认为 "latest" 获取最新版本
-
-    Returns:
-        GitHubReleaseAsset 对象，未找到返回None
-    """
+    """从 GitHub Release 获取资源信息。"""
     try:
         if tag == "latest":
             api_url = f"https://api.github.com/repos/{repo}/releases/latest"
@@ -366,37 +243,13 @@ def get_github_release_asset(
 
 
 def _extract_version_from_filename(filename: str) -> str:
-    """
-    从文件名提取版本号
-
-    支持格式：
-    - AUfemale.imgpack_v0.8.0.zip -> v0.8.0
-    - mod_1.2.3.zip -> 1.2.3
-    - something-v2.0.0-beta.zip -> v2.0.0-beta
-
-    Args:
-        filename: 文件名
-
-    Returns:
-        版本号字符串，未找到返回 "unknown"
-    """
-    match = re.search(
-        r"[_-](v?\d+\.\d+\.\d+[^.]*)\.zip", filename, re.IGNORECASE
-    )
+    """从文件名提取版本号。"""
+    match = re.search(r"[_-](v?\d+\.\d+\.\d+[^.]*)\.zip", filename, re.IGNORECASE)
     return match.group(1) if match else "unknown"
 
 
 def get_gitgud_commit_hash(repo: str, branch: str = "master") -> str | None:
-    """
-    获取 GitGud 仓库的最新 commit hash
-
-    Args:
-        repo: 仓库路径，如 "Frostberg/degrees-of-lewdity-plus"
-        branch: 分支名，默认 "master"
-
-    Returns:
-        commit hash 的前7位，失败返回 None
-    """
+    """获取 GitGud 仓库的最新 commit hash。"""
     try:
         # GitGud API: https://gitgud.io/api/v4/projects/:id/repository/branches/:branch
         # 需要将 / 编码为 %2F

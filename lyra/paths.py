@@ -1,8 +1,4 @@
-"""
-路径管理模块
-
-集中管理所有构建路径，避免路径计算散落在各处。
-"""
+"""路径管理模块。"""
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,11 +8,7 @@ from .config_loader import BuildConfiguration, load_build_config
 
 @dataclass
 class BuildPaths:
-    """
-    构建路径管理器
-
-    集中管理所有构建相关的路径计算，确保路径一致性。
-    """
+    """构建路径管理器。"""
 
     workspace: Path = field(default_factory=lambda: Path("."))
     _config: BuildConfiguration | None = field(default=None, repr=False)
@@ -26,8 +18,6 @@ class BuildPaths:
             self._config = load_build_config()
         self.workspace = Path(self.workspace)
 
-    # ========== 主要目录 ==========
-
     @property
     def base_dir(self) -> Path:
         """基包存放目录 (workspace/base)"""
@@ -36,7 +26,7 @@ class BuildPaths:
     @property
     def output_dir(self) -> Path:
         """构建输出目录 (output)"""
-        return Path(self._config.output_dir)
+        return self.workspace / self._config.output_dir
 
     @property
     def workspace_inner(self) -> Path:
@@ -63,8 +53,6 @@ class BuildPaths:
         """签名输出目录 (workspace/signed)"""
         return self.workspace_inner / self._config.signed_dir
 
-    # ========== 基包路径 ==========
-
     def get_base_zip(self, polyfill: bool = False) -> Path:
         """获取ZIP基包路径"""
         suffix = "-polyfill" if polyfill else ""
@@ -74,8 +62,6 @@ class BuildPaths:
         """获取已解包APK目录路径"""
         suffix = "-polyfill" if polyfill else ""
         return self.prepare_dir / f"apk{suffix}"
-
-    # ========== 工具路径 ==========
 
     @property
     def apktool_path(self) -> Path:
@@ -88,29 +74,12 @@ class BuildPaths:
         return self.workspace / "uber-apk-signer.jar"
 
     @property
-    def keystore_path(self) -> Path:
-        """签名密钥路径"""
-        return Path("dol.jks")
-
-    # ========== 版本信息 ==========
-
-    @property
     def versions_file(self) -> Path:
         """版本信息文件路径"""
         return self.base_dir / "versions.json"
 
-    # ========== 美化资源缓存目录 ==========
-
     def get_beautify_cache_dir(self, name: str) -> Path:
-        """
-        获取美化资源缓存目录
-
-        Args:
-            name: 资源名称 (besc, hikari, goose, ucb)
-
-        Returns:
-            缓存目录路径
-        """
+        """获取美化资源缓存目录。"""
         dir_map = {
             "besc": "besc",
             "hikari": "sideview_hikari",
@@ -120,33 +89,13 @@ class BuildPaths:
         return self.temp_dir / dir_map.get(name, name)
 
     def get_mod_cache_path(self, name: str) -> Path:
-        """
-        获取 modloader mod 缓存文件路径
-
-        Args:
-            name: mod 名称 (如 au_f, au_m, au_a)
-
-        Returns:
-            mod zip 文件路径
-        """
+        """获取 modloader mod 缓存文件路径。"""
         return self.temp_dir / f"{name}.mod.zip"
-
-    # ========== 构建工作目录 ==========
 
     def get_build_work_dir(
         self, pack_type: str, mod_code: int, polyfill: bool = False
     ) -> Path:
-        """
-        获取特定构建的工作目录
-
-        Args:
-            pack_type: 包类型 (zip/apk)
-            mod_code: MOD代码
-            polyfill: 是否为polyfill版本
-
-        Returns:
-            工作目录路径
-        """
+        """获取特定构建的工作目录。"""
         suffix = "-polyfill" if polyfill else ""
         return self.extract_dir / pack_type / f"{mod_code}{suffix}"
 
@@ -160,8 +109,6 @@ class BuildPaths:
         suffix = "-polyfill" if polyfill else ""
         return self.signed_dir / f"{mod_code}{suffix}"
 
-    # ========== 目录创建 ==========
-
     def ensure_dirs(self):
         """确保所有必要目录存在"""
         dirs = [
@@ -174,10 +121,3 @@ class BuildPaths:
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
-
-    # ========== 工厂方法 ==========
-
-    @classmethod
-    def from_workspace(cls, workspace: Path = Path(".")) -> "BuildPaths":
-        """从工作空间创建路径管理器"""
-        return cls(workspace=workspace)

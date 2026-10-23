@@ -17,14 +17,13 @@ env:
   MANIFEST_JSON_POLYFILL_FILENAME: "manifest-polyfill.json"
 
   UPLOAD_ARTIFACT_NAME: "ModLoader-Artifact"
-  UPLOAD_ARTIFACT_FILEPATH: ${{ github.workspace }}/Modloader-Artifact.zip
   REPOSITORY_NAME: ${{ github.event.repository.name }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Make Directories
         run: mkdir -p "$DOWNLOAD_RELEASE_TEMP_PATH"
@@ -87,14 +86,11 @@ jobs:
               index_html_file.truncate()
               index_html_file.write(index_html)
 
-      - name: Pack Artifact
-        run: 7z a "$UPLOAD_ARTIFACT_FILEPATH" "$DOWNLOAD_RELEASE_TEMP_PATH/*"
-
       - name: Upload Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ env.UPLOAD_ARTIFACT_NAME }}
-          path: ${{ env.UPLOAD_ARTIFACT_FILEPATH }}
+          path: ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
 
   deploy-github:
     runs-on: ubuntu-latest
@@ -102,16 +98,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download Artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ env.UPLOAD_ARTIFACT_NAME }}
-
-      - name: Extract Artifact
-        working-directory: ${{ github.workspace }}
-        run: unzip -q "$UPLOAD_ARTIFACT_FILEPATH" -d ./modloader-temp
+          path: ${{ env.DOWNLOAD_RELEASE_TEMP_PATH }}
 
       - name: Modify manifest.json
         shell: python3 {0}

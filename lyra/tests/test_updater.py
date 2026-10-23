@@ -1,6 +1,5 @@
 """测试上游汉化版本检查逻辑。"""
 
-import re
 import unittest
 
 from lyra.updater import check_chs_update

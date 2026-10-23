@@ -1,14 +1,9 @@
-"""
-配置加载模块
-
-从 TOML 配置文件加载构建配置、功能定义和组合规则。
-"""
+"""配置加载模块。"""
 
 import logging
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-
-import tomllib
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +125,6 @@ class BaseModConfig:
     """基础 mod 注入配置"""
 
     key: str  # mod 标识，对应 extra_mods 字典中的键
-    feature_id: str = ""  # 关联的 feature ID（可选）
     github_repo: str = ""  # GitHub 仓库，自动下载最新 .mod.zip（可选）
     inject: str = "add"  # 注入方式: "add" 追加 / "replace" 替换指定 slot
     replace_slot: int = 0  # 替换的 slot 索引（仅 inject="replace" 时有效）
@@ -139,7 +133,6 @@ class BaseModConfig:
     def from_dict(cls, data: dict) -> "BaseModConfig":
         return cls(
             key=data["key"],
-            feature_id=data.get("feature_id", ""),
             github_repo=data.get("github_repo", ""),
             inject=data.get("inject", "add"),
             replace_slot=data.get("replace_slot", 0),
@@ -155,7 +148,6 @@ class BuildConfiguration:
     apktool_sha256: str
     uber_apk_signer_url: str
     uber_apk_signer_sha256: str
-    dolp_base_url: str
     chs_repo_url: str
 
     # Paths
@@ -216,7 +208,6 @@ class BuildConfiguration:
             apktool_sha256=urls["apktool_sha256"],
             uber_apk_signer_url=urls["uber_apk_signer"],
             uber_apk_signer_sha256=urls["uber_apk_signer_sha256"],
-            dolp_base_url=dolp_base,
             chs_repo_url=chs_repo,
             workspace_dir=paths["workspace"],
             output_dir=paths["output"],
@@ -284,19 +275,6 @@ class ConfigLoader:
                 return f
         return None
 
-    def get_feature_by_bit(self, bit: int) -> Feature | None:
-        """通过位值获取功能"""
-        for f in self.features:
-            if f.bit == bit:
-                return f
-        return None
-
-    def reload(self):
-        """重新加载所有配置"""
-        self._features = None
-        self._combinations = None
-        self._build = None
-
 
 # 全局配置加载器实例
 _config_loader: ConfigLoader | None = None
@@ -308,16 +286,6 @@ def get_config_loader(config_dir: Path | None = None) -> ConfigLoader:
     if _config_loader is None or config_dir is not None:
         _config_loader = ConfigLoader(config_dir)
     return _config_loader
-
-
-def load_features(config_dir: Path | None = None) -> list[Feature]:
-    """加载功能定义"""
-    return get_config_loader(config_dir).features
-
-
-def load_combinations_config(config_dir: Path | None = None) -> CombinationsConfig:
-    """加载组合配置"""
-    return get_config_loader(config_dir).combinations
 
 
 def load_build_config(config_dir: Path | None = None) -> BuildConfiguration:
