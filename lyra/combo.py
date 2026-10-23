@@ -43,6 +43,13 @@ class CombinationCalculator:
         """初始化计算器。"""
         self.loader = get_config_loader(config_dir)
         self._feature_map = {feature.id: feature for feature in self.loader.features}
+        self._known_mask = 0
+        for feature in self.features:
+            self._known_mask |= feature.bit
+
+    def _validate_code(self, value: int):
+        if value <= 0 or value & ~self._known_mask:
+            raise ValueError(f"组合包含未定义的功能位: {value}")
 
     @property
     def features(self) -> list[Feature]:
@@ -102,7 +109,7 @@ class CombinationCalculator:
     def _should_skip(self, value: int) -> bool:
         """检查是否应该跳过此组合"""
         # 跳过 0
-        if value == 0:
+        if value == 0 or value & ~self._known_mask:
             return True
 
         # 检查必选功能
@@ -166,6 +173,7 @@ class CombinationCalculator:
         # 添加白名单
         existing_codes = {c.code for c in combinations}
         for code in config.whitelist:
+            self._validate_code(code)
             if code not in existing_codes:
                 comb = ModCombination(
                     code=code,
@@ -179,6 +187,7 @@ class CombinationCalculator:
 
         # 添加polyfill版本
         if include_polyfill and config.polyfill_enabled:
+            self._validate_code(config.polyfill_code)
             polyfill_comb = ModCombination(
                 code=config.polyfill_code,
                 display_name=self._get_display_name(config.polyfill_code) + "(兼容版)",

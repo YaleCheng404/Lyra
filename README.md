@@ -12,16 +12,16 @@
 - Android 安装 APK。应用名为 `DoL Lyra`，可与原版和汉化版共存；存档通过导出、导入转移。
 - polyfill 兼容版面向部分旧设备或浏览器。APK 无法加载 ModLoader 时，先更新系统 WebView，再尝试兼容版。
 - 发布文件包含完整游戏和 Mod，请勿将整合包 ZIP 作为 ModLoader 旁加载包导入。
-- 汉化、作弊和 CSD 已内置，可在 ModLoader 中启用或禁用。旁加载其他汉化或图片包可能覆盖内置内容。
+- 汉化、作弊、CSD、秋枫白桦框架、枯木逢春及音频、默示录：归途之书、极致动态 Dynamicest 已内置，可在 ModLoader 中启用或禁用。旁加载其他汉化或图片包可能覆盖内置内容。
 
-文件名格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。各组合由配置文件定义，下载页显示对应资源版本和来源。
+文件名格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。保留 BESC、Hikari、UCB 和 AU-F 组合，下载页显示对应资源版本和来源。
 
 在线版由 **Deploy Online** workflow 部署到本仓库 `online` 分支，使用 BESC、作弊和 CSD 组合，包含普通与兼容模式。
 
 ## 自动构建
 
-- **Trigger** 定时检查上游汉化 Release，发现新版本后触发 **Build**。
-- **Build** 下载资源、构建 ZIP/APK；指定发布 tag 时创建 Release 并部署下载站。
+- **Trigger** 每天香港时间 04:17 检查上游汉化 Release，发现新版本后触发 **Build**，同步获取最新正式版 Mod。Mod 单独更新不触发发布。
+- **Build** 下载资源、构建并校验 16 个 ZIP/APK；指定发布 tag 时创建 Release 并部署下载站。必需 Mod 获取或产物校验失败时停止发布。
 - 首次使用下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。
 - `SIGNING_KEY` secret 可配置 Base64 编码的 APK keystore；未配置时 CI 生成临时密钥。需要覆盖安装时应使用固定签名密钥。
 - 上游仓库、资源和组合规则在 `config/` 中配置。
@@ -50,29 +50,21 @@
 - Mod
   - [Lyra-CombatStatusDisplay][lyra-csd]
   - [Lyra-Cheat][lyra-cheat]
+  - [秋枫白桦框架][maplebirch]
+  - [枯木逢春及音频包][deadwood]
+  - [默示录：归途之书][revelation]
+  - [极致动态 Dynamicest][dynamicest]
+  - 资源同步和发布校验参考 [DoL-Thalia][thalia]
 - 美化
   - [Degrees of Lewdity Plus][dolp]
   - [Degrees of Lewdity Graphics Mod][beeesss]
     - BEEESSS
   - [BEEESSS Community Sprite Compilation][beeesss-ext]
     - BEEESSS, ethanatortx, MatchaCrepeCakes, LedhaKuromi, Tommohas, Jessplayin690, SkyFall669/SomethingIsHuntingYou, AvinsXD, okbd321, cloversnipe, Elegant_Dress_5771, doseonseng, G259M, VanityDecay, Hikari, luoyin mengling, Tieba user_5CU79bt, Xiaochien, cheese shredded cake, artiste (the gayest man alive), Suqi eggplant stew, Paril, La Maritza, AD calcium, Isari, 森谷華子, aqua, superhydroxide, 再3棘, 567600, ToumanLin, Isopod, ◌/あきやま, Poop, SydNekoKawaii, Bunnyberry<3, Mizzy, 長門有栖☆, 七玳, 墮天使
-  - [BEEESSS Wax][beeesss-wax]
-    - Paril, b333sss
-  - [Susato Model][susato-model]
-    - susato, miyako2428
   - [通用战斗美化 UCB][ucb-github]
     - 贴吧用户\_GaC5V7E
 - 特写
   - [Hikari][hikari]
-  - [Goose][goose]
-  - [Paril Double Cheeseburger][sideview-dc]
-    - Paril, b333sss, Zubonko, Blaine
-  - [DOL BJ hair extend][sideview-bj-extend]
-    - Zubonko
-  - [韩站特写][sideview-kr]
-    - G259M
-  - [KR特写刘海补充][sideview-kr-extend]
-    - 贴吧用户\_GaC5V7E
 
 [blog]: https://vrelnir.blogspot.com
 [wiki-en]: https://degreesoflewdity.miraheze.org/wiki
@@ -84,16 +76,15 @@
 [github-chs-pages]: https://eltirosto.github.io/Degrees-of-Lewdity-Chinese-Localization/
 [beeesss]: https://gitgud.io/BEEESSS/degrees-of-lewdity-graphics-mod
 [beeesss-ext]: https://gitgud.io/Kaervek/kaervek-beeesss-community-sprite-compilation
-[beeesss-wax]: https://gitgud.io/GTXMEGADUDE/beeesss-wax
-[sideview-dc]: https://gitgud.io/GTXMEGADUDE/double-cheeseburger
-[sideview-bj-extend]: https://github.com/zubonko/DOL_BJ_hair_extend
-[sideview-kr]: https://arca.live/b/textgame/83875947
-[sideview-kr-extend]: https://tieba.baidu.com/p/9055647926
 [github-lyra]: https://github.com/DoL-Lyra
 [lyra-csd]: https://github.com/DoL-Lyra/CombatStatusDisplay
 [lyra-cheat]: https://github.com/DoL-Lyra/Cheat
-[susato-model]: https://discord.com/channels/675158131688603721/1216104862870147303
 [ucb-github]: https://github.com/site098/mysterious
 [dolp]: https://gitgud.io/Frostberg/degrees-of-lewdity-plus
 [hikari]: https://gitgud.io/HikariT/hikari-mods
-[goose]: https://gitgud.io/goose/createshit
+
+[maplebirch]: https://github.com/MaplebirchLeaf/SCML-DOL-maplebirchFramework
+[deadwood]: https://github.com/MaplebirchLeaf/Deadwood-Reblooms
+[revelation]: https://github.com/MaplebirchLeaf/Revelation-The-Book-of-Return
+[dynamicest]: https://github.com/ANLINSTUDIO/Degrees-of-Lewdity-DolDynamicest
+[thalia]: https://github.com/MaplebirchLeaf/DoL-Thalia

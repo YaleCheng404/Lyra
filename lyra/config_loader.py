@@ -128,6 +128,9 @@ class BaseModConfig:
     github_repo: str = ""  # GitHub 仓库，自动下载最新 .mod.zip（可选）
     inject: str = "add"  # 注入方式: "add" 追加 / "replace" 替换指定 slot
     replace_slot: int = 0  # 替换的 slot 索引（仅 inject="replace" 时有效）
+    name: str = ""
+    asset_pattern: str = "*.mod.zip"
+    required: bool = False
 
     @classmethod
     def from_dict(cls, data: dict) -> "BaseModConfig":
@@ -136,6 +139,9 @@ class BaseModConfig:
             github_repo=data.get("github_repo", ""),
             inject=data.get("inject", "add"),
             replace_slot=data.get("replace_slot", 0),
+            name=data.get("name", data["key"]),
+            asset_pattern=data.get("asset_pattern", "*.mod.zip"),
+            required=data.get("required", False),
         )
 
 

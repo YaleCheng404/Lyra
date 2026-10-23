@@ -128,6 +128,8 @@ class GamePreparer:
         """完整的预处理流程。"""
         logger.info("========== 开始游戏预处理 ==========")
 
+        self._validate_required_mods(extra_mods)
+
         # 准备 ZIP 基包
         self._prepare_zip_base(downloaded_files, extra_mods)
 
@@ -239,6 +241,7 @@ class GamePreparer:
     def _inject_mods(self, html_path: Path, extra_mods: dict[str, Path]):
         """向 HTML 文件注入所有基础 mod。"""
         build_config = load_build_config()
+        self._validate_required_mods(extra_mods)
 
         mods_to_add = []
         for mod in build_config.base_mods:
@@ -256,6 +259,14 @@ class GamePreparer:
 
         # 修补 ModLoader 代码
         self.mod_injector.patch_modloader_code(html_path)
+
+    @staticmethod
+    def _validate_required_mods(extra_mods: dict[str, Path]):
+        for mod in load_build_config().base_mods:
+            if mod.required and (
+                mod.key not in extra_mods or not extra_mods[mod.key].is_file()
+            ):
+                raise FileNotFoundError(f"缺少必需 Mod: {mod.name or mod.key}")
 
     def _merge_image_pack(self, image_pack_path: Path, target_dir: Path):
         """合并图片包"""

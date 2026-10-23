@@ -175,6 +175,16 @@ def cmd_list(args) -> int:
     return 0
 
 
+def cmd_verify(args) -> int:
+    """校验全部构建产物。"""
+    from lyra.verify import verify_packages
+
+    setup_logging(args.verbose)
+    version = LyraVersion.from_tag(args.tag) if args.tag else None
+    verify_packages(BuildPaths(workspace=Path(args.workspace)), version)
+    return 0
+
+
 def cmd_check(args) -> int:
     """检查是否需要更新。"""
     from lyra.config_loader import load_build_config
@@ -283,6 +293,11 @@ def main():
     build_parser.add_argument("--workspace", default=".", help="工作目录")
     build_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
 
+    verify_parser = subparsers.add_parser("verify", help="校验完整产物集合与必需 Mod")
+    verify_parser.add_argument("--tag", help="构建版本 tag")
+    verify_parser.add_argument("--workspace", default=".", help="工作目录")
+    verify_parser.add_argument("-v", "--verbose", action="store_true", help="详细输出")
+
     # page 命令
     page_parser = subparsers.add_parser(
         "page",
@@ -346,6 +361,7 @@ def main():
         "matrix": cmd_matrix,
         "list": cmd_list,
         "check": cmd_check,
+        "verify": cmd_verify,
     }
 
     try:

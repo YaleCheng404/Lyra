@@ -86,9 +86,6 @@ files_to_remove = [
     "img/clothes/face/foxmask/Full.png",
 ]
 
-[imagepacks.goose]
-urls = ["{dolp_base}/dolp", "{dolp_base}/goosefem", "{dolp_base}/goosefemsubs"]
-
 [imagepacks.ucb]
 urls = ["{dolp_base}/mysterious"]
 files_to_remove = [
@@ -104,21 +101,10 @@ github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
 asset_pattern = "AUfemale.model"
 release_tag = "mod"
 
-[[modloader_mods]]
-feature_id = "au-m"
-github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-asset_pattern = "AUmale.model"
-release_tag = "mod"
-
-[[modloader_mods]]
-feature_id = "au-a"
-github_repo = "AOKIUTAGE/UTAGEsDOL3.0"
-asset_pattern = "AUandrogynous.model"
-release_tag = "mod"
-
 # 基础 mod 注入配置（按列表顺序处理）
 # key: mod 标识，对应 extra_mods 字典中的键
-# github_repo: GitHub 仓库，自动下载最新 .mod.zip（可选）
+# github_repo: GitHub 仓库，每次准备时查询最新正式 Release
+# asset_pattern: 附件 glob，必须唯一匹配；required: 获取失败时终止构建
 # inject: 注入方式，"add" 追加（默认） / "replace" 替换指定 slot
 # replace_slot: 替换的 slot 索引（仅 inject="replace" 时有效）
 
@@ -138,3 +124,38 @@ github_repo = "DoL-Lyra/Cheat"
 [[base_mods]]
 key = "csd"
 github_repo = "DoL-Lyra/CombatStatusDisplay"
+
+[[base_mods]]
+key = "maplebirch"
+name = "秋枫白桦框架"
+github_repo = "MaplebirchLeaf/SCML-DOL-maplebirchFramework"
+asset_pattern = "maplebirch-*.mod.zip"
+required = true
+
+[[base_mods]]
+key = "deadwood-reblooms"
+name = "枯木逢春"
+github_repo = "MaplebirchLeaf/Deadwood-Reblooms"
+asset_pattern = "deadwood-reblooms-[0-9]*.modpack"
+required = true
+
+[[base_mods]]
+key = "deadwood-reblooms-audio"
+name = "枯木逢春音频"
+github_repo = "MaplebirchLeaf/Deadwood-Reblooms"
+asset_pattern = "deadwood-reblooms-audio-*.modpack"
+required = true
+
+[[base_mods]]
+key = "revelation-the-book-of-return"
+name = "默示录：归途之书"
+github_repo = "MaplebirchLeaf/Revelation-The-Book-of-Return"
+asset_pattern = "revelation-the-book-of-return-*.modpack"
+required = true
+
+[[base_mods]]
+key = "dynamicest"
+name = "极致动态 Dynamicest"
+github_repo = "ANLINSTUDIO/Degrees-of-Lewdity-DolDynamicest"
+asset_pattern = "Dynamicest-*.mod.zip"
+required = true

@@ -141,7 +141,6 @@ class PackageBuilder(ABC):
         beautify_map = {
             ModCode.BESC: ("besc", "BESC"),
             ModCode.SIDEVIEW_HIKARI: ("hikari", "Hikari"),
-            ModCode.SIDEVIEW_GOOSE: ("goose", "Goose"),
             ModCode.UCB: ("ucb", "UCB"),
         }
 
@@ -149,7 +148,6 @@ class PackageBuilder(ABC):
         order = [
             ModCode.BESC,
             ModCode.SIDEVIEW_HIKARI,
-            ModCode.SIDEVIEW_GOOSE,
             ModCode.UCB,  # UCB 最后处理
         ]
 

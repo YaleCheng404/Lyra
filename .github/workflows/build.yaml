@@ -130,6 +130,43 @@ jobs:
       - name: List outputs
         run: ls -lah "$BUILD_WORKSPACE/output/" || echo "No output files generated"
 
+      - name: Verify all packages
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+        run: |
+          if [[ -n "$RELEASE_TAG" ]]; then
+            python main.py verify --workspace "$BUILD_WORKSPACE" --tag "$RELEASE_TAG" -v
+          else
+            python main.py verify --workspace "$BUILD_WORKSPACE" -v
+          fi
+
+      - name: Upload verification report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verification-report
+          path: |
+            output/build-manifest.json
+            output/release-notes.md
+
+      - name: Install browser test tools
+        run: |
+          python -m pip install playwright==1.64.1
+          python -m playwright install --with-deps chromium
+
+      - name: Verify normal and polyfill browser runtime
+        run: |
+          NORMAL=$(find "$BUILD_WORKSPACE/output" -maxdepth 1 -type f -name '*-besc-[0-9]*.zip' ! -name '*-polyfill-*')
+          POLYFILL=$(find "$BUILD_WORKSPACE/output" -maxdepth 1 -type f -name '*-polyfill-besc-*.zip')
+          python scripts/browser_smoke.py "$NORMAL" "$POLYFILL"
+
+      - name: Upload browser checks
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-smoke
+          path: output/browser-smoke/
+          if-no-files-found: ignore
+
       - name: Generate download page
         if: steps.meta.outputs.is_release == 'true'
         shell: bash
@@ -189,7 +226,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: download-page
-          path: ${{ github.workspace }}/output/*.md
+          path: ${{ github.workspace }}/output/${{ steps.meta.outputs.release_tag }}.md
 
   release:
     runs-on: ubuntu-latest
@@ -198,6 +235,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check release tag belongs to this build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > tag.json 2>/dev/null; then
+            TYPE=$(jq -r '.object.type' tag.json)
+            SHA=$(jq -r '.object.sha' tag.json)
+            if [[ "$TYPE" == "tag" ]]; then
+              SHA=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$SHA" --jq '.object.sha')
+            fi
+            test "$SHA" = "$GITHUB_SHA" || { echo "Release tag points to another commit" >&2; exit 1; }
+          else
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/$RELEASE_TAG" --jq 'length')" = "0"
+          fi
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verification-report
+          path: verification/
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dol-builds-zip
@@ -212,7 +272,9 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ needs.build.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
           name: ${{ needs.build.outputs.release_tag }}
+          body_path: verification/release-notes.md
           make_latest: true
           files: |
             outputs/*.zip

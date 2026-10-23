@@ -1,13 +1,15 @@
 """资源下载模块。"""
 
 import logging
+import json
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import requests
 
 from .config_loader import load_build_config
 from .paths import BuildPaths
-from .utils import download_file
+from .utils import download_file, get_file_hash
 from .version import LyraVersion, VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
@@ -123,42 +125,86 @@ class Downloader:
         download_dir = self.paths.base_dir / "mods"
         download_dir.mkdir(parents=True, exist_ok=True)
 
+        releases = {}
         for mod in build_config.base_mods:
             if not mod.github_repo:
                 continue
 
             try:
-                release_data = self._get_github_release(mod.github_repo, "latest")
-                if not release_data:
-                    logger.warning(f"无法获取 {mod.github_repo} 的release信息")
-                    continue
+                if mod.github_repo not in releases:
+                    releases[mod.github_repo] = self._get_github_release(
+                        mod.github_repo, "latest"
+                    )
+                release_data = releases[mod.github_repo]
+                if not release_data or release_data.get("draft") or release_data.get("prerelease"):
+                    raise RuntimeError(f"无法获取 {mod.github_repo} 的正式 Release")
 
                 release_tag = release_data.get("tag_name", "unknown")
 
-                # 查找mod.zip文件
-                for asset in release_data.get("assets", []):
-                    asset_name = asset.get("name", "")
-                    if asset_name.endswith(".mod.zip"):
-                        dest_path = download_dir / asset_name
-                        download_file(asset.get("browser_download_url"), dest_path)
-                        downloaded_mods[mod.key] = dest_path
-
-                        # 记录版本信息
-                        self.registry.add(
-                            VersionInfo(
-                                name=mod.key,
-                                version=release_tag,
-                                source=mod.github_repo,
-                                filename=asset_name,
-                            )
-                        )
-                        logger.info(f"  {mod.key}: {asset_name} ({release_tag})")
-                        break
+                assets = [
+                    asset for asset in release_data.get("assets", [])
+                    if fnmatchcase(asset.get("name", ""), mod.asset_pattern)
+                ]
+                if len(assets) != 1:
+                    raise ValueError(
+                        f"{mod.key}: {mod.asset_pattern} 匹配到 {len(assets)} 个附件"
+                    )
+                asset = assets[0]
+                dest_path = self._download_mod_asset(asset, download_dir)
+                downloaded_mods[mod.key] = dest_path
+                self.registry.add(
+                    VersionInfo(
+                        name=mod.name or mod.key,
+                        version=release_tag,
+                        source=mod.github_repo,
+                        filename=asset["name"],
+                    )
+                )
+                logger.info(f"  {mod.name or mod.key}: {dest_path.name} ({release_tag})")
 
             except Exception as e:
+                if mod.required:
+                    raise RuntimeError(f"必需 Mod {mod.name or mod.key} 获取失败: {e}") from e
                 logger.error(f"下载 {mod.key} 失败: {e}")
 
         return downloaded_mods
+
+    @staticmethod
+    def _download_mod_asset(asset: dict, download_dir: Path) -> Path:
+        """校验来源身份和摘要，避免同名附件更新后继续使用旧缓存。"""
+        name = asset.get("name", "")
+        if not name or name in {".", ".."} or Path(name).name != name or "/" in name or "\\" in name:
+            raise ValueError(f"无效附件名称: {name}")
+        url = asset.get("browser_download_url")
+        if not url:
+            raise ValueError(f"附件缺少下载链接: {name}")
+        dest = download_dir / name
+        metadata = dest.with_name(name + ".source.json")
+        identity = {key: asset.get(key) for key in (
+            "id", "updated_at", "size", "browser_download_url"
+        )}
+        digest = asset.get("digest")
+        if digest and not digest.startswith("sha256:"):
+            raise ValueError(f"不支持的附件摘要: {name}")
+        reusable = False
+        if dest.is_file() and dest.stat().st_size == asset.get("size"):
+            if digest:
+                reusable = "sha256:" + get_file_hash(dest, "sha256") == digest
+            elif all(value is not None for value in identity.values()):
+                try:
+                    reusable = json.loads(metadata.read_text(encoding="utf-8")) == identity
+                except (OSError, ValueError):
+                    pass
+        if not reusable:
+            # download_file 通过 .part 校验后原子替换，失败不会损坏原缓存。
+            download_file(
+                url, dest, expected_sha256=digest, force=True,
+                expected_size=asset.get("size"),
+            )
+            temp_metadata = metadata.with_name(metadata.name + ".part")
+            temp_metadata.write_text(json.dumps(identity, sort_keys=True), encoding="utf-8")
+            temp_metadata.replace(metadata)
+        return dest
 
     def download_apktool(self) -> Path:
         """下载apktool"""

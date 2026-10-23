@@ -85,7 +85,7 @@ class BuildFlowTests(unittest.TestCase):
             self.assertEqual((dest / "keep").read_bytes(), b"keep")
             self.assertEqual((dest / "nested" / "new").read_bytes(), b"nested")
 
-    def test_all_28_output_names_match_download_links(self):
+    def test_all_16_output_names_match_download_links(self):
         codes = CombinationCalculator().get_build_codes()
         self.assertEqual(
             set(codes),
@@ -93,17 +93,11 @@ class BuildFlowTests(unittest.TestCase):
                 "polyfill-3",
                 "3",
                 "35",
-                "514",
                 "1026",
                 "2",
                 "259",
                 "291",
-                "770",
                 "1282",
-                "2050",
-                "2306",
-                "4098",
-                "4354",
             },
         )
         version = LyraVersion.from_tag("v0.5.12.13-1.0.1a-1023")

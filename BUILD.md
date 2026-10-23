@@ -38,7 +38,7 @@ python main.py matrix --output-format shell
 python main.py check --github-owner OWNER --github-repo REPO
 ```
 
-`build` 默认构建 ZIP 和 APK，包含配置启用的 polyfill 组合。当前配置共 14 个构建代码，对应 28 个 ZIP/APK 目标。修改组合应编辑配置文件。
+`build` 默认构建 ZIP 和 APK，包含配置启用的 polyfill 组合。当前配置共 8 个构建代码，对应 16 个 ZIP/APK 目标。修改组合应编辑配置文件。
 
 `prepare`、`warmup` 和 `build` 支持 `--workspace PATH`，默认当前目录。输出位于该目录下的 `output/`，基包和版本记录位于 `base/`，中间文件位于 `workspace/`。`page` 的输入和输出路径通过参数独立指定。APK 签名密钥始终从运行目录的 `dol.jks` 读取。
 
@@ -54,7 +54,7 @@ python main.py check --github-owner OWNER --github-repo REPO
 
 产物格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。整合包 tag 格式为 `v{游戏版本}-{汉化版本}-{四位日期}`，例如 `v0.5.12.13-1.0.1a-1023`。
 
-图片包按 `build.toml` 中的 URL 顺序合并，并应用 `case_fixes` 与 `files_to_remove`。构建时美化按 BESC、Hikari、Goose、UCB 顺序覆盖；基础 Mod 按配置顺序注入。`base/versions.json` 记录已解析的资源版本，下载页和包内 Lyra 信息 Mod 使用该记录。并行任务按包类型、组合和兼容模式隔离工作目录。
+图片包按 `build.toml` 中的 URL 顺序合并，并应用 `case_fixes` 与 `files_to_remove`。构建时美化按 BESC、Hikari、UCB 顺序覆盖；基础 Mod 按配置顺序注入。`base/versions.json` 记录已解析的资源版本，下载页和包内 Lyra 信息 Mod 使用该记录。并行任务按包类型、组合和兼容模式隔离工作目录。
 
 ## 手工编辑 Mod
 
@@ -95,7 +95,13 @@ hugo --source hub --destination public --baseURL https://example.github.io/Lyra/
 - 基包或美化资源缺失时，依次运行 `prepare`、`warmup`，再运行 `build`。
 - 工具摘要校验失败时，核对官方资源及配置中的摘要；不要绕过校验。
 - APK 重建失败时检查 Java、Apktool 输出和 AndroidManifest 替换规则；签名失败时检查 `dol.jks` 与 alias。签名工具无法定位 zipalign 时，检查 PATH 目录是否可列举，并把可用的 zipalign 目录放到 PATH 前部；手工调用也可使用上游的 `--zipAlignPath` 参数。
-- 下载失败时检查 GitHub/GitGud 连接与 API 限额。缓存会跳过已有资源；更换上游版本时使用新的工作目录，避免旧资源混入。
+- 下载失败时检查 GitHub/GitGud 连接与 API 限额。基础 Mod 每次准备时查询最新正式 Release，同一仓库共用一次查询结果；缓存通过附件 SHA-256 或完整来源身份校验，同名附件被替换后重新下载。
 - 本地虚拟环境解释器路径失效时，重新创建环境并安装锁文件。
 
 许可文本见 [LICENSE](LICENSE) 与 [LICENSE2](LICENSE2)，各上游资源遵循其来源许可。
+
+## 基础 Mod 与发布校验
+
+所有组合包含秋枫白桦框架、枯木逢春本体与音频、默示录：归途之书及极致动态 Dynamicest。按配置顺序原样内嵌 `.mod.zip` 和 `.modpack`；asset_pattern 使用 glob 且必须唯一匹配，required = true 的资源获取失败会终止准备。
+
+完成构建后运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023`，校验完整产物集合、压缩包 CRC、HTML 内必需 Mod 的字节和顺序，并生成 output/release-notes.md。CI 在上传附件和发布前执行相同检查。Trigger 每天香港时间 04:17 检查新汉化；手动发布使用 Build 的 release_tag 输入。

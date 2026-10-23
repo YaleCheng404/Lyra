@@ -29,7 +29,9 @@ def setup_logging(verbose: bool = False):
 
 
 def download_file(
-    url: str, dest: Path, quiet: bool = False, expected_sha256: str | None = None
+    url: str, dest: Path, quiet: bool = False, expected_sha256: str | None = None,
+    force: bool = False,
+    expected_size: int | None = None,
 ) -> Path:
     """下载文件到指定路径。"""
     expected_sha256 = (
@@ -41,7 +43,7 @@ def download_file(
     ):
         raise ValueError("expected_sha256 必须是 64 位十六进制字符串")
 
-    if dest.exists() and (
+    if not force and dest.exists() and (
         not expected_sha256 or get_file_hash(dest, "sha256") == expected_sha256
     ):
         logger.debug(f"文件已存在，跳过下载: {dest}")
@@ -75,6 +77,8 @@ def download_file(
                 raise ValueError(
                     f"{dest.name} SHA-256 校验失败: expected={expected_sha256}, actual={actual}"
                 )
+        if expected_size is not None and partial.stat().st_size != expected_size:
+            raise ValueError(f"{dest.name} 附件大小不符")
         partial.replace(dest)
     finally:
         partial.unlink(missing_ok=True)

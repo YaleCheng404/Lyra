@@ -83,7 +83,6 @@ class BuildPaths:
         dir_map = {
             "besc": "besc",
             "hikari": "sideview_hikari",
-            "goose": "sideview_goose",
             "ucb": "ucb",
         }
         return self.temp_dir / dir_map.get(name, name)
