@@ -1,12 +1,16 @@
 """资源合并、构建矩阵和并行错误传播回归测试。"""
 
+import tarfile
 import tempfile
 import unittest
 from concurrent.futures import Future
 from dataclasses import replace
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from io import BytesIO
 from pathlib import Path
 from subprocess import CalledProcessError
-from unittest.mock import Mock, patch
+from threading import Thread
+from unittest.mock import Mock, call, patch
 from zipfile import ZipFile
 
 from lyra.build import BuildTask
@@ -23,6 +27,49 @@ from lyra.warmup import ResourceWarmer
 
 
 class BuildFlowTests(unittest.TestCase):
+    def test_archive_download_respects_retry_after_and_recovers(self):
+        archive = BytesIO()
+        with tarfile.open(fileobj=archive, mode="w:gz") as tar:
+            image = tarfile.TarInfo("project/imagepacks/b3s/body/test.png")
+            image.size = 3
+            tar.addfile(image, BytesIO(b"img"))
+        statuses = iter((429, 429, 200))
+
+        class ArchiveHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                status = next(statuses)
+                self.send_response(status)
+                if status == 429:
+                    self.send_header("Retry-After", "10")
+                self.end_headers()
+                if status == 200:
+                    self.wfile.write(archive.getvalue())
+
+            def log_message(self, *_args):
+                pass
+
+        with HTTPServer(("127.0.0.1", 0), ArchiveHandler) as server:
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                with (
+                    tempfile.TemporaryDirectory() as directory,
+                    patch("lyra.warmup.get_gitgud_commit_hash", return_value=None),
+                    patch("urllib3.util.retry.time.sleep") as sleep,
+                ):
+                    paths = BuildPaths(workspace=Path(directory))
+                    warmer = ResourceWarmer(paths)
+                    pack = ImagePackConfig("besc", [f"http://127.0.0.1:{server.server_port}/b3s"])
+                    warmer.config = replace(warmer.config, imagepacks={"besc": pack})
+                    warmer._warmup_dolp_packs()
+                    self.assertEqual(sleep.call_args_list, [call(10), call(10)])
+                    image = paths.get_beautify_cache_dir("besc") / "img/body/test.png"
+                    self.assertEqual(image.read_bytes(), b"img")
+                    self.assertFalse(list(paths.temp_dir.glob("*.part")))
+            finally:
+                server.shutdown()
+                thread.join()
+
     @patch("lyra.downloader.download_file")
     def test_upstream_selects_distinct_normal_and_polyfill_apks(self, download):
         names = [

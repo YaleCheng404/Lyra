@@ -15,4 +15,6 @@ requests==2.34.2
 tqdm==4.70.1
     # via -r requirements.in
 urllib3==2.8.0
-    # via requests
+    # via
+    #   -r requirements.in
+    #   requests

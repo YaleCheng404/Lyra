@@ -3,6 +3,10 @@
 import logging
 import shutil
 
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
 from .config_loader import (
     ImagePackConfig,
     ModloaderModConfig,
@@ -63,12 +67,27 @@ class ResourceWarmer:
                 )
             )
 
-        for url in sorted(urls):
-            self._download_dolp_pack(url)
+        # GitGud's archive endpoint returns 429 with Retry-After under load.
+        retries = Retry(
+            total=10,
+            connect=0,
+            read=0,
+            other=0,
+            allowed_methods={"GET"},
+            status_forcelist={429},
+            backoff_factor=5,
+            backoff_max=30,
+            raise_on_status=False,
+        )
+        with Session() as session:
+            for scheme in ("http://", "https://"):
+                session.mount(scheme, HTTPAdapter(max_retries=retries))
+            for url in sorted(urls):
+                self._download_dolp_pack(url, session)
         for pack in self.config.imagepacks.values():
             self._process_image_pack(pack)
 
-    def _download_dolp_pack(self, url: str):
+    def _download_dolp_pack(self, url: str, session: Session):
         """下载单个 DoL+ 图片包。"""
         pack_name = url.rsplit("/", 1)[-1]
         tar_path = self.paths.temp_dir / f"dolp-{pack_name}.tar.gz"
@@ -79,7 +98,7 @@ class ResourceWarmer:
             return
 
         logger.info(f"  下载: {pack_name}")
-        download_file(url, tar_path, quiet=True)
+        download_file(url, tar_path, quiet=True, session=session)
 
         img_dir = extract_dir / "img"
         img_dir.mkdir(parents=True, exist_ok=True)

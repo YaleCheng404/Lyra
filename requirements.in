@@ -2,3 +2,4 @@
 requests>=2.34.2
 tqdm>=4.70.1
 packaging>=26.3
+urllib3>=2.8.0

@@ -31,6 +31,8 @@ def download_file(
     url: str, dest: Path, quiet: bool = False, expected_sha256: str | None = None,
     force: bool = False,
     expected_size: int | None = None,
+    *,
+    session: requests.Session | None = None,
 ) -> Path:
     """下载文件到指定路径。"""
     expected_sha256 = (
@@ -52,8 +54,9 @@ def download_file(
 
     logger.info(f"下载: {url}")
     partial = dest.with_name(f"{dest.name}.part")
+    get = session.get if session is not None else requests.get
     try:
-        with requests.get(url, stream=True, timeout=60) as response:
+        with get(url, stream=True, timeout=60) as response:
             response.raise_for_status()
             total_size = int(response.headers.get("content-length", 0))
             with (
