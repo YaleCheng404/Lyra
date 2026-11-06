@@ -2,6 +2,7 @@
 
 import logging
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,13 +12,7 @@ from .config import ModCode
 from .config_loader import get_config_loader
 from .lyra_mod import build_lyra_mod
 from .paths import BuildPaths
-from .utils import (
-    copy_directory,
-    create_zip,
-    extract_zip,
-    run_command,
-    safe_remove,
-)
+from .utils import create_zip, extract_zip, safe_remove
 from .version import LyraVersion, VersionRegistry, package_filename
 
 logger = logging.getLogger(__name__)
@@ -119,7 +114,7 @@ class PackageBuilder:
             if self.mod_code & code:
                 source = self.paths.get_beautify_cache_dir(name) / "img"
                 if source.exists():
-                    copy_directory(source, self.img_path)
+                    shutil.copytree(source, self.img_path, dirs_exist_ok=True)
                 else:
                     logger.warning("美化资源不存在: %s", source)
 
@@ -144,13 +139,10 @@ class PackageBuilder:
         """构建并注入 Lyra 信息 mod。"""
         registry = VersionRegistry.load(self.paths.versions_file)
 
-        mod_suffix = self.mod_code.get_suffix()
-
-        # 构建 Lyra mod（使用任务唯一路径避免并行竞态）
-        lyra_mod_path = self.lyra_mod_path
-        build_lyra_mod(lyra_mod_path, self.task.version, list(registry), mod_suffix)
-
-        add_mods_to_html(self.html_path, [lyra_mod_path])
+        build_lyra_mod(
+            self.lyra_mod_path, self.task.version, list(registry), self.mod_code.get_suffix()
+        )
+        add_mods_to_html(self.html_path, [self.lyra_mod_path])
 
     def build(self) -> BuildResult:
         output = self.paths.output_dir / package_filename(
@@ -169,8 +161,9 @@ class PackageBuilder:
                     self.paths.get_base_zip(self.task.is_polyfill), self.work_dir
                 )
             else:
-                copy_directory(
-                    self.paths.get_apk_dir(self.task.is_polyfill), self.work_dir
+                shutil.copytree(
+                    self.paths.get_apk_dir(self.task.is_polyfill), self.work_dir,
+                    dirs_exist_ok=True,
                 )
                 safe_remove(signed_dir)
             self._apply_beautify()
@@ -202,7 +195,7 @@ class PackageBuilder:
         apktool_path = self.paths.apktool_path
         tmp_apk = self.paths.get_temp_apk(self.task.mod_code, self.task.is_polyfill)
 
-        run_command(
+        subprocess.run(
             [
                 "java",
                 "-jar",
@@ -211,7 +204,9 @@ class PackageBuilder:
                 str(self.work_dir),
                 "-o",
                 str(tmp_apk),
-            ]
+            ],
+            check=True,
+            text=True,
         )
 
         return tmp_apk
@@ -226,7 +221,7 @@ class PackageBuilder:
         )
         signed_dir.mkdir(parents=True, exist_ok=True)
 
-        run_command(
+        subprocess.run(
             [
                 "java",
                 "--enable-native-access=ALL-UNNAMED",
@@ -244,7 +239,9 @@ class PackageBuilder:
                 self.KEYSTORE_PASSWORD,
                 "-o",
                 str(signed_dir),
-            ]
+            ],
+            check=True,
+            text=True,
         )
 
         for f in signed_dir.iterdir():

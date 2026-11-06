@@ -63,13 +63,9 @@ class VersionRegistry:
 
     def add(self, info: VersionInfo):
         """添加版本信息"""
-        # 避免重复添加
-        for v in self.versions:
+        for index, v in enumerate(self.versions):
             if v.name == info.name:
-                # 更新已存在的版本信息
-                v.version = info.version
-                v.source = info.source
-                v.filename = info.filename
+                self.versions[index] = info
                 return
         self.versions.append(info)
 

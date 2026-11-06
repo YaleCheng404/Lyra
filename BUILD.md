@@ -2,10 +2,10 @@
 
 ## 环境
 
-CI 使用 Python 3.15.1、Temurin Java 25.0.5 和 Hugo 0.168.0。Java 用于 APK 解包、重建与签名；Hugo 仅用于生成下载站。完整构建建议使用 Linux 或 WSL，避免 Windows 文件名大小写冲突。Windows 使用 Temurin 25 系列中已提供的维护版，构建前通过 `java -version` 确认实际版本。
+CI 使用 Python 3.15.2、Temurin Java 25.0.5+8 和 Hugo 0.169.0。Java 用于 APK 解包、重建与签名，Hugo 用于生成下载站。完整构建建议使用 Linux 或 WSL，避免 Windows 文件名大小写冲突。Windows 可从 [Temurin 发布页](https://github.com/adoptium/temurin25-binaries/releases/tag/jdk-25.0.5%2B8) 获取相同版本。
 
 ```sh
-uv venv --python 3.15.1 .venv
+uv venv --python 3.15.2 .venv
 # Linux / WSL
 . .venv/bin/activate
 # Windows PowerShell 使用 .venv/Scripts/Activate.ps1
@@ -73,11 +73,11 @@ python scripts/modmagic.py remove game.html 0 2
 
 ## 依赖与检查
 
-运行环境以 `.python-version` 为准。`requirements.in` 声明运行依赖，`requirements.txt` 固定完整依赖；`requirements-dev.in` 引用运行锁文件并声明 Playwright 和 uv，`requirements-dev.txt` 固定开发与浏览器检查环境。uv 使用 0.13.5 或更新正式版。
+运行环境以 `.python-version` 为准。运行和开发依赖分别由 `requirements.in` 和 `requirements-dev.in` 声明，开发环境引用运行锁文件。使用 uv 0.13.7 或更新正式版，先解析运行依赖，再解析开发依赖。
 
 ```sh
-uv pip compile requirements.in --universal --python-version 3.15.1 --upgrade --output-file requirements.txt
-uv pip compile requirements-dev.in --universal --python-version 3.15.1 --upgrade --output-file requirements-dev.txt
+uv pip compile requirements.in --universal --python-version 3.15.2 --upgrade --output-file requirements.txt
+uv pip compile requirements-dev.in --universal --python-version 3.15.2 --upgrade --output-file requirements-dev.txt
 uv pip sync requirements-dev.txt
 uv pip check
 python -m unittest discover -v
@@ -107,4 +107,4 @@ hugo --source hub --destination public --baseURL https://example.github.io/Lyra/
 
 所有组合包含秋枫白桦框架、枯木逢春本体与音频、默示录：归途之书及极致动态 Dynamicest。按配置顺序原样内嵌 `.mod.zip` 和 `.modpack`；asset_pattern 使用 glob 且必须唯一匹配，required = true 的资源获取失败会终止准备。
 
-完成构建后运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023`，校验完整产物集合、压缩包 CRC、HTML 内必需 Mod 的字节和顺序，并生成 output/release-notes.md。CI 在上传附件和发布前执行相同检查。Trigger 每天香港时间 04:17 检查新汉化；手动发布使用 Build 的 release_tag 输入。
+完成构建后运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023`，校验完整产物集合、压缩包 CRC、HTML 内必需 Mod 的字节和顺序，并生成 `output/release-notes.md`。CI 在上传附件和发布前执行相同检查。手动发布使用 Build 的 `release_tag` 输入。首次配置下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。

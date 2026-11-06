@@ -3,8 +3,11 @@
 import tempfile
 import unittest
 from concurrent.futures import Future
+from dataclasses import replace
 from pathlib import Path
+from subprocess import CalledProcessError
 from unittest.mock import Mock, patch
+from zipfile import ZipFile
 
 from lyra.build import BuildTask
 from lyra.combo import CombinationCalculator
@@ -14,7 +17,7 @@ from lyra.gen_page import DownloadPageConfig, DownloadPageGenerator
 from lyra.parallel import build_all_parallel
 from lyra.paths import BuildPaths
 from lyra.prepare import GamePreparer
-from lyra.utils import copy_directory
+from lyra.utils import extract_zip
 from lyra.version import LyraVersion, package_filename
 from lyra.warmup import ResourceWarmer
 
@@ -70,20 +73,95 @@ class BuildFlowTests(unittest.TestCase):
             self.assertIn("shoulder.png", [path.name for path in result.iterdir()])
             self.assertFalse((result / "remove.png").exists())
 
-    def test_directory_merge_overwrites_and_preserves_unrelated_files(self):
+    def test_prepare_reuses_images_and_keeps_normal_and_polyfill_separate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            source, dest = root / "source", root / "dest"
-            (source / "nested").mkdir(parents=True)
-            dest.mkdir()
-            (source / "same").write_bytes(b"new")
-            (source / "nested" / "new").write_bytes(b"nested")
-            (dest / "same").write_bytes(b"old")
-            (dest / "keep").write_bytes(b"keep")
-            copy_directory(source, dest)
-            self.assertEqual((dest / "same").read_bytes(), b"new")
-            self.assertEqual((dest / "keep").read_bytes(), b"keep")
-            self.assertEqual((dest / "nested" / "new").read_bytes(), b"nested")
+            paths = BuildPaths(workspace=root)
+            preparer = GamePreparer(paths)
+            preparer.config = replace(preparer.config, base_mods=[], apk_replacements=[])
+            files = {key: root / f"{key}.zip" for key in (
+                "zip", "polyfill_zip", "apk", "polyfill_apk", "image_pack"
+            )}
+            with ZipFile(files["image_pack"], "w") as archive:
+                archive.writestr("pack/img/same.png", b"overlay")
+            for key in ("zip", "polyfill_zip", "apk", "polyfill_apk"):
+                prefix = "assets/www/" if key.endswith("apk") else ""
+                with ZipFile(files[key], "w") as archive:
+                    archive.writestr(prefix + "index.html", key)
+                    archive.writestr(prefix + "img/same.png", b"original")
+                    archive.writestr(prefix + "img/keep.png", b"keep")
+                    if key == "zip":
+                        archive.writestr("obsolete.png", b"old")
+
+            def decompile(command, **kwargs):
+                extract_zip(Path(command[-3]), Path(command[-1]))
+
+            with (
+                patch("lyra.prepare.extract_zip", wraps=extract_zip) as extract,
+                patch("lyra.prepare.subprocess.run", side_effect=decompile),
+            ):
+                preparer.prepare_all(files, {})
+                self.assertEqual(
+                    sum(call.args[0] == files["image_pack"] for call in extract.call_args_list),
+                    1,
+                )
+                with ZipFile(files["zip"], "w") as archive:
+                    archive.writestr("index.html", "zip")
+                preparer.prepare_all(files, {})
+
+            for polyfill, prefix in ((False, ""), (True, "polyfill_")):
+                with ZipFile(paths.get_base_zip(polyfill)) as archive:
+                    self.assertEqual(archive.read("index.html").decode(), prefix + "zip")
+                    self.assertEqual(archive.read("img/same.png"), b"overlay")
+                    self.assertNotIn("obsolete.png", archive.namelist())
+                    if polyfill:
+                        self.assertEqual(archive.read("img/keep.png"), b"keep")
+                apk = paths.get_apk_dir(polyfill) / "assets/www"
+                self.assertEqual((apk / "index.html").read_text(), prefix + "apk")
+                self.assertEqual((apk / "img/same.png").read_bytes(), b"overlay")
+                self.assertEqual((apk / "img/keep.png").read_bytes(), b"keep")
+            self.assertEqual(
+                {p.name for p in paths.prepare_dir.iterdir()}, {"apk", "apk-polyfill"}
+            )
+
+    def test_prepare_failure_cleans_extraction_and_preserves_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = BuildPaths(workspace=root)
+            paths.ensure_dirs()
+            preparer = GamePreparer(paths)
+            preparer.config = replace(preparer.config, base_mods=[])
+            source = root / "missing-html.zip"
+            with ZipFile(source, "w") as archive:
+                archive.writestr("img/test.png", b"image")
+            base = paths.get_base_zip()
+            base.write_bytes(b"existing base")
+            with self.assertRaisesRegex(FileNotFoundError, "未找到游戏 HTML"):
+                preparer.prepare_all({"zip": source, "image_pack": source}, {})
+            self.assertEqual(base.read_bytes(), b"existing base")
+            self.assertEqual(list(paths.prepare_dir.iterdir()), [])
+            self.assertEqual(list(paths.base_dir.iterdir()), [base])
+
+    def test_failed_apk_decode_preserves_previous_prepared_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = BuildPaths(workspace=Path(directory))
+            apk_dir = paths.get_apk_dir()
+            apk_dir.mkdir(parents=True)
+            (apk_dir / "original").write_bytes(b"old")
+            preparer = GamePreparer(paths)
+            preparer.config = replace(preparer.config, base_mods=[])
+
+            def fail(command, **kwargs):
+                decoded = Path(command[-1])
+                decoded.mkdir()
+                (decoded / "partial").write_bytes(b"incomplete")
+                raise CalledProcessError(1, command)
+
+            with patch("lyra.prepare.subprocess.run", side_effect=fail):
+                with self.assertRaises(CalledProcessError):
+                    preparer.prepare_all({"apk": Path("input.apk")}, {})
+            self.assertEqual((apk_dir / "original").read_bytes(), b"old")
+            self.assertEqual(list(paths.prepare_dir.iterdir()), [apk_dir])
 
     def test_all_16_output_names_match_download_links(self):
         codes = CombinationCalculator().get_build_codes()
@@ -115,19 +193,6 @@ class BuildFlowTests(unittest.TestCase):
                         config.get_filename(task.mod_code, kind, task.is_polyfill),
                     )
                     self.assertIn(config.get_download_url(filename), page)
-
-    def test_polyfill_apk_uses_its_own_upstream_file(self):
-        preparer = GamePreparer(BuildPaths())
-        files = {"apk": Path("normal.apk"), "polyfill_apk": Path("polyfill.apk")}
-        with patch.object(preparer, "_process_apk_version") as process:
-            preparer._prepare_apk(files, {})
-        self.assertEqual(
-            [call.args[0] for call in process.call_args_list],
-            [files["apk"], files["polyfill_apk"]],
-        )
-        self.assertEqual(
-            [call.kwargs["polyfill"] for call in process.call_args_list], [False, True]
-        )
 
     @patch("lyra.parallel.CombinationCalculator")
     @patch("lyra.parallel.ProcessPoolExecutor")

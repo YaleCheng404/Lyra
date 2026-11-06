@@ -1,6 +1,7 @@
 """资源预热模块。"""
 
 import logging
+import shutil
 
 from .config_loader import (
     ImagePackConfig,
@@ -10,7 +11,6 @@ from .config_loader import (
 )
 from .paths import BuildPaths
 from .utils import (
-    copy_directory,
     download_file,
     extract_tar_gz,
     get_gitgud_commit_hash,
@@ -26,7 +26,6 @@ class ResourceWarmer:
     """资源预热器。"""
 
     def __init__(self, paths: BuildPaths):
-        """初始化预热器。"""
         self.paths = paths
         self.config = load_build_config()
         self.registry = VersionRegistry()
@@ -95,7 +94,7 @@ class ResourceWarmer:
             return
         for url in pack.urls:
             source = self.paths.temp_dir / f"dolp-{url.rsplit('/', 1)[-1]}" / "img"
-            copy_directory(source, dest)
+            shutil.copytree(source, dest, dirs_exist_ok=True)
         for source_name, target_name in pack.case_fixes.items():
             source, target = root / source_name, root / target_name
             if not source.exists():
@@ -105,7 +104,7 @@ class ResourceWarmer:
             if target.exists() and source.samefile(target):
                 source.rename(target)
             elif source.is_dir():
-                copy_directory(source, target)
+                shutil.copytree(source, target, dirs_exist_ok=True)
                 safe_remove(source)
             else:
                 source.replace(target)

@@ -5,7 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
+
+from requests.exceptions import ChunkedEncodingError
 
 import main
 from lyra.config_loader import load_build_config
@@ -23,7 +25,8 @@ class SecurityControlTests(unittest.TestCase):
     @patch("lyra.utils.requests.get")
     def test_download_verifies_sha256(self, get):
         content = b"verified release asset"
-        response = Mock()
+        response = MagicMock()
+        response.__enter__.return_value = response
         response.headers = {"content-length": str(len(content))}
         response.iter_content.return_value = [content]
         get.return_value = response
@@ -42,7 +45,8 @@ class SecurityControlTests(unittest.TestCase):
 
     @patch("lyra.utils.requests.get")
     def test_download_rejects_wrong_sha256(self, get):
-        response = Mock()
+        response = MagicMock()
+        response.__enter__.return_value = response
         response.headers = {}
         response.iter_content.return_value = [b"different bytes"]
         get.return_value = response
@@ -97,6 +101,25 @@ class SecurityControlTests(unittest.TestCase):
 
         self.assertEqual(main.cmd_check(args), 1)
         response.raise_for_status.assert_called_once_with()
+
+    @patch("lyra.utils.requests.get")
+    def test_interrupted_download_closes_response_and_keeps_cache(self, get):
+        def chunks():
+            yield b"partial content"
+            raise ChunkedEncodingError("connection lost")
+
+        response = get.return_value
+        response.__enter__.return_value = response
+        response.headers = {}
+        response.iter_content.return_value = chunks()
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory) / "cached.zip"
+            dest.write_bytes(b"original cache")
+            with self.assertRaisesRegex(ChunkedEncodingError, "connection lost"):
+                download_file("https://example.test/cached.zip", dest, force=True)
+            self.assertEqual(dest.read_bytes(), b"original cache")
+            self.assertFalse(dest.with_name("cached.zip.part").exists())
+        self.assertIs(response.__exit__.call_args.args[0], ChunkedEncodingError)
 
 
 if __name__ == "__main__":

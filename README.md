@@ -22,11 +22,8 @@
 
 - **Trigger** 每天香港时间 04:17 检查上游汉化 Release，发现新版本后触发 **Build**，同步获取最新正式版 Mod。Mod 单独更新不触发发布。
 - **Build** 下载资源、构建并校验 16 个 ZIP/APK；指定发布 tag 时创建 Release 并部署下载站。必需 Mod 获取或产物校验失败时停止发布。
-- 首次使用下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。
-- `SIGNING_KEY` secret 可配置 Base64 编码的 APK keystore；未配置时 CI 生成临时密钥。需要覆盖安装时应使用固定签名密钥。
-- 上游仓库、资源和组合规则在 `config/` 中配置。
 
-本地环境、构建命令与 Mod 编辑工具用法见 [BUILD.md](BUILD.md)。
+本地环境、签名和发布配置、构建命令与 Mod 编辑工具用法见 [BUILD.md](BUILD.md)。
 
 ## 问题反馈
 
@@ -73,7 +70,6 @@
 [discord]: https://discord.gg/VznUtEh
 [github-chs]: https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization
 [github-chs-credits]: https://github.com/Eltirosto/Degrees-of-Lewdity-Chinese-Localization/blob/main/CREDITS.md
-[github-chs-pages]: https://eltirosto.github.io/Degrees-of-Lewdity-Chinese-Localization/
 [beeesss]: https://gitgud.io/BEEESSS/degrees-of-lewdity-graphics-mod
 [beeesss-ext]: https://gitgud.io/Kaervek/kaervek-beeesss-community-sprite-compilation
 [github-lyra]: https://github.com/DoL-Lyra

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from lyra.combo import CombinationCalculator
 from lyra.config_loader import BaseModConfig, load_build_config
@@ -30,7 +30,8 @@ class ModSourceTests(unittest.TestCase):
                 "browser_download_url": "https://example.test/" + name}
 
     def response(self, content):
-        response = Mock()
+        response = MagicMock()
+        response.__enter__.return_value = response
         response.headers = {"content-length": str(len(content))}
         response.iter_content.return_value = [content]
         return response
@@ -111,7 +112,7 @@ class ModSourceTests(unittest.TestCase):
 
     def test_required_missing_before_any_package_changes(self):
         preparer = GamePreparer(self.paths)
-        with patch.object(preparer, "_prepare_zip_base") as process:
+        with patch.object(preparer, "_prepare_zip") as process:
             with self.assertRaises(FileNotFoundError):
                 preparer.prepare_all({}, {})
             process.assert_not_called()

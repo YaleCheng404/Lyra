@@ -1,227 +1,128 @@
-"""预处理模块。"""
+"""生成 ZIP 基包和 APK 解包目录。"""
 
 import logging
+import shutil
+import subprocess
+from collections import defaultdict
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from scripts.modmagic import add_mods_to_html, replace_mod_by_id
 
-from .config_loader import load_build_config
+from .config_loader import Replacement, load_build_config
 from .paths import BuildPaths
-from .utils import (
-    copy_directory,
-    create_zip,
-    extract_zip,
-    run_command,
-    safe_remove,
-)
-from .version import VersionRegistry
+from .utils import create_zip, extract_zip, safe_remove
 
 logger = logging.getLogger(__name__)
 
 
-class ApkProcessor:
-    """APK 处理器。"""
-
-    def __init__(self, paths: BuildPaths):
-        """初始化 APK 处理器。"""
-        self.paths = paths
-        self.config = load_build_config()
-
-    def decompile(self, apk_path: Path, dest_dir: Path) -> Path:
-        """反编译 APK。"""
-        logger.info(f"反编译 APK: {apk_path}")
-
-        if dest_dir.exists():
-            safe_remove(dest_dir)
-
-        apktool_path = self.paths.apktool_path
-        run_command(
-            [
-                "java",
-                "-jar",
-                str(apktool_path),
-                "d",
-                str(apk_path),
-                "-o",
-                str(dest_dir),
-            ]
-        )
-
-        return dest_dir
-
-    def apply_replacements(self, apk_dir: Path):
-        """应用配置中的替换规则。"""
-        logger.info("应用 APK 配置替换...")
-
-        file_replacements: dict[str, list] = {}
-        for replacement in self.config.apk_replacements:
-            file_replacements.setdefault(replacement.file, []).append(replacement)
-
-        for file_path, replacements in file_replacements.items():
-            full_path = apk_dir / file_path
-            if not full_path.exists():
-                logger.warning(f"  文件不存在: {file_path}")
-                continue
-
-            content = full_path.read_text(encoding="utf-8")
-            modified = False
-
-            for r in replacements:
-                if r.pattern in content:
-                    content = content.replace(r.pattern, r.replacement)
-                    modified = True
-                    logger.debug(f"  替换: {r.pattern} -> {r.replacement}")
-
-            if modified:
-                full_path.write_text(content, encoding="utf-8")
-                logger.info(f"  已修改: {file_path}")
-
-
 def patch_modloader_code(html_path: Path):
-    """修改 HTML 文件中 ModLoader 的 JavaScript 代码。"""
-    if not html_path.exists():
-        raise FileNotFoundError(html_path)
-
-    try:
-        content = html_path.read_text(encoding="utf-8")
-
-        old_pattern = "const remodloader = modReadCache.clone();"
-        new_pattern = """const remodloader = modReadCache.clone();
-        remodloader.filterItems((mod) => mod.bootJson && mod.bootJson.name !== 'ModLoader');"""
-
-        if old_pattern in content:
-            content = content.replace(old_pattern, new_pattern)
-            html_path.write_text(content, encoding="utf-8")
-            logger.info(f"  已修补 ModLoader 代码: {html_path.name}")
-        else:
-            logger.debug(f"  未找到需要修补的代码: {html_path.name}")
-
-    except Exception as e:
-        raise RuntimeError(f"修补 ModLoader 代码失败: {html_path}") from e
+    # 重载时跳过 ModLoader 本身，避免再次初始化加载器。
+    marker = "const remodloader = modReadCache.clone();"
+    content = html_path.read_text(encoding="utf-8")
+    if marker in content:
+        replacement = (
+            marker + "\n        remodloader.filterItems("
+            "(mod) => mod.bootJson && mod.bootJson.name !== 'ModLoader');"
+        )
+        html_path.write_text(content.replace(marker, replacement), encoding="utf-8")
+        logger.info("已修补 ModLoader: %s", html_path.name)
 
 
 class GamePreparer:
-    """游戏资源预处理器。"""
-
     def __init__(self, paths: BuildPaths):
-        """初始化预处理器。"""
         self.paths = paths
-        self.apk_processor = ApkProcessor(paths)
-        self.registry = VersionRegistry()
+        self.config = load_build_config()
 
     def prepare_all(
-        self,
-        downloaded_files: dict[str, Path],
-        extra_mods: dict[str, Path],
-    ) -> VersionRegistry:
-        """完整的预处理流程。"""
-        logger.info("========== 开始游戏预处理 ==========")
+        self, downloaded_files: dict[str, Path], extra_mods: dict[str, Path]
+    ) -> None:
+        for mod in self.config.base_mods:
+            if mod.required and (
+                mod.key not in extra_mods or not extra_mods[mod.key].is_file()
+            ):
+                raise FileNotFoundError(f"缺少必需 Mod: {mod.name or mod.key}")
 
-        self._validate_required_mods(extra_mods)
+        self.paths.prepare_dir.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(dir=self.paths.prepare_dir, prefix="images-") as directory:
+            images = None
+            if image_pack := downloaded_files.get("image_pack"):
+                root = extract_zip(image_pack, Path(directory))
+                images = root / "img"
+                if not images.exists():
+                    images = next((p for p in root.glob("*/img") if p.is_dir()), None)
 
-        self._prepare_zip_base(downloaded_files, extra_mods)
+            for key, polyfill in (("zip", False), ("polyfill_zip", True)):
+                if key in downloaded_files:
+                    self._prepare_zip(downloaded_files[key], images, extra_mods, polyfill)
 
-        self._prepare_apk(downloaded_files, extra_mods)
+            for key, polyfill in (("apk", False), ("polyfill_apk", True)):
+                if key not in downloaded_files:
+                    raise FileNotFoundError(f"未找到上游资源: {key}")
+                self._prepare_apk(downloaded_files[key], images, extra_mods, polyfill)
 
-        logger.info("========== 游戏预处理完成 ==========")
-        return self.registry
-
-    def _prepare_zip_base(
-        self,
-        downloaded_files: dict[str, Path],
-        extra_mods: dict[str, Path],
-    ):
-        """准备 ZIP 基包"""
-        if "zip" in downloaded_files:
-            self._process_zip_version(
-                downloaded_files["zip"],
-                downloaded_files.get("image_pack"),
-                extra_mods,
-                polyfill=False,
-            )
-
-        if "polyfill_zip" in downloaded_files:
-            self._process_zip_version(
-                downloaded_files["polyfill_zip"],
-                downloaded_files.get("image_pack"),
-                extra_mods,
-                polyfill=True,
-            )
-
-    def _process_zip_version(
-        self,
-        zip_path: Path,
-        image_pack_path: Path | None,
-        extra_mods: dict[str, Path],
-        polyfill: bool,
-    ):
-        """处理单个 ZIP 版本"""
-        suffix = "-polyfill" if polyfill else ""
-        logger.info(f"处理 ZIP{suffix}...")
-
-        extract_dir = self.paths.prepare_dir / f"zip{suffix}"
-        extract_zip(zip_path, extract_dir)
-
-        if image_pack_path:
-            self._merge_image_pack(image_pack_path, extract_dir)
-
-        html_files = list(extract_dir.glob("*.html"))
-        if html_files:
-            self._inject_mods(html_files[0], extra_mods)
-
-        base_zip = self.paths.get_base_zip(polyfill)
-        create_zip(extract_dir, base_zip)
-        logger.info(f"  基包已创建: {base_zip}")
+    def _prepare_zip(
+        self, source: Path, images: Path | None, extra_mods: dict[str, Path], polyfill: bool
+    ) -> None:
+        output = self.paths.get_base_zip(polyfill)
+        partial = output.with_name(output.name + ".part")
+        try:
+            with TemporaryDirectory(dir=self.paths.prepare_dir, prefix="zip-") as directory:
+                root = extract_zip(source, Path(directory))
+                if images:
+                    shutil.copytree(images, root / "img", dirs_exist_ok=True)
+                html = next(root.glob("*.html"), None)
+                if html is None:
+                    raise FileNotFoundError(f"ZIP 中未找到游戏 HTML: {source}")
+                self._inject_mods(html, extra_mods)
+                create_zip(root, partial)
+            partial.replace(output)
+            logger.info("基包已创建: %s", output)
+        finally:
+            partial.unlink(missing_ok=True)
 
     def _prepare_apk(
-        self,
-        downloaded_files: dict[str, Path],
-        extra_mods: dict[str, Path],
-    ):
-        """准备 APK"""
-        for key, polyfill in (("apk", False), ("polyfill_apk", True)):
-            if key not in downloaded_files:
-                raise FileNotFoundError(f"未找到上游资源: {key}")
-            self._process_apk_version(
-                downloaded_files[key],
-                downloaded_files.get("image_pack"),
-                extra_mods,
-                polyfill=polyfill,
-            )
-
-    def _process_apk_version(
-        self,
-        apk_path: Path,
-        image_pack_path: Path | None,
-        extra_mods: dict[str, Path],
-        polyfill: bool,
-    ):
-        """处理单个 APK 版本"""
-        suffix = "-polyfill" if polyfill else ""
-        logger.info(f"处理 APK{suffix}...")
-
+        self, source: Path, images: Path | None, extra_mods: dict[str, Path], polyfill: bool
+    ) -> None:
         apk_dir = self.paths.get_apk_dir(polyfill)
-        self.apk_processor.decompile(apk_path, apk_dir)
+        with TemporaryDirectory(dir=self.paths.prepare_dir, prefix="apk-") as directory:
+            decoded = Path(directory) / "decoded"
+            logger.info("反编译 APK: %s", source)
+            subprocess.run(
+                ["java", "-jar", str(self.paths.apktool_path), "d", str(source), "-o", str(decoded)],
+                check=True,
+                text=True,
+            )
+            self._apply_apk_replacements(decoded)
+            html_dir = decoded / "assets" / "www"
+            if images:
+                shutil.copytree(images, html_dir / "img", dirs_exist_ok=True)
+            self._inject_mods(html_dir / "index.html", extra_mods)
+            safe_remove(apk_dir)
+            decoded.replace(apk_dir)
+        logger.info("APK 目录已准备: %s", apk_dir)
 
-        self.apk_processor.apply_replacements(apk_dir)
+    def _apply_apk_replacements(self, apk_dir: Path) -> None:
+        by_file: dict[str, list[Replacement]] = defaultdict(list)
+        for replacement in self.config.apk_replacements:
+            by_file[replacement.file].append(replacement)
 
-        if image_pack_path:
-            img_dest = apk_dir / "assets" / "www" / "img"
-            self._merge_image_pack(image_pack_path, img_dest.parent)
+        for filename, replacements in by_file.items():
+            path = apk_dir / filename
+            if not path.exists():
+                logger.warning("文件不存在: %s", path)
+                continue
 
-        html_path = apk_dir / "assets" / "www" / "index.html"
-        if html_path.exists():
-            self._inject_mods(html_path, extra_mods)
+            original = content = path.read_text(encoding="utf-8")
+            for rule in replacements:
+                content = content.replace(rule.pattern, rule.replacement)
+            if content != original:
+                path.write_text(content, encoding="utf-8")
+                logger.info("已修改: %s", path)
 
-        logger.info(f"  APK 目录已准备: {apk_dir}")
-
-    def _inject_mods(self, html_path: Path, extra_mods: dict[str, Path]):
-        """向 HTML 文件注入所有基础 mod。"""
-        build_config = load_build_config()
-        self._validate_required_mods(extra_mods)
-
+    def _inject_mods(self, html_path: Path, extra_mods: dict[str, Path]) -> None:
         mods_to_add = []
-        for mod in build_config.base_mods:
+        for mod in self.config.base_mods:
             if mod.key not in extra_mods:
                 continue
             if mod.inject == "replace":
@@ -231,38 +132,4 @@ class GamePreparer:
 
         if mods_to_add:
             add_mods_to_html(html_path, mods_to_add)
-
         patch_modloader_code(html_path)
-
-    @staticmethod
-    def _validate_required_mods(extra_mods: dict[str, Path]):
-        for mod in load_build_config().base_mods:
-            if mod.required and (
-                mod.key not in extra_mods or not extra_mods[mod.key].is_file()
-            ):
-                raise FileNotFoundError(f"缺少必需 Mod: {mod.name or mod.key}")
-
-    def _merge_image_pack(self, image_pack_path: Path, target_dir: Path):
-        """合并图片包"""
-        temp_dir = self.paths.temp_dir / "image_pack_temp"
-        extract_zip(image_pack_path, temp_dir)
-
-        img_src = (
-            temp_dir / "img"
-            if (temp_dir / "img").exists()
-            else next(
-                (
-                    d / "img"
-                    for d in temp_dir.iterdir()
-                    if d.is_dir() and (d / "img").exists()
-                ),
-                None,
-            )
-        )
-
-        if img_src:
-            img_dest = target_dir / "img"
-            copy_directory(img_src, img_dest)
-            logger.debug(f"  合并图片包: {img_src} -> {img_dest}")
-
-        safe_remove(temp_dir)

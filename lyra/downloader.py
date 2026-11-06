@@ -1,7 +1,7 @@
 """资源下载模块。"""
 
-import logging
 import json
+import logging
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -19,7 +19,6 @@ class Downloader:
     """资源下载器。"""
 
     def __init__(self, paths: BuildPaths):
-        """初始化下载器。"""
         self.paths = paths
         self.registry = VersionRegistry()
 
@@ -32,17 +31,12 @@ class Downloader:
         build_config = load_build_config()
         chs_repo = build_config.chs_repo_url
 
-        # 确定要获取的release tag
-        if version:
-            tag = f"v{version.dol_ver}-chs-{version.chs_ver}"
-            release_data = self._get_github_release(chs_repo, tag)
-        else:
-            release_data = self._get_github_release(chs_repo, "latest")
+        tag = f"v{version.dol_ver}-chs-{version.chs_ver}" if version else "latest"
+        release_data = self._get_github_release(chs_repo, tag)
 
         if not release_data:
             raise RuntimeError("无法获取汉化仓库release信息")
 
-        # 记录版本信息
         release_tag = release_data.get("tag_name", "unknown")
         self.registry.add(
             VersionInfo(
@@ -53,7 +47,6 @@ class Downloader:
         )
         logger.info(f"汉化仓库版本: {release_tag}")
 
-        # 定义需要下载的文件模式
         required_patterns = [
             (
                 "polyfill_apk",
@@ -86,7 +79,6 @@ class Downloader:
             ("i18n", lambda name: "ModI18N" in name and name.endswith(".zip")),
         ]
 
-        # 从release assets中筛选需要的文件
         assets_to_download = {}
         for asset in release_data.get("assets", []):
             asset_name = asset.get("name", "")
@@ -98,12 +90,10 @@ class Downloader:
                     }
                     break
 
-        # 检查是否找到所有必需文件
         missing = [key for key, _ in required_patterns if key not in assets_to_download]
         if missing:
             logger.warning(f"未找到以下资源: {missing}")
 
-        # 下载文件
         downloaded_files = {}
         download_dir = self.paths.base_dir
         download_dir.mkdir(parents=True, exist_ok=True)
@@ -202,8 +192,11 @@ class Downloader:
                 expected_size=asset.get("size"),
             )
             temp_metadata = metadata.with_name(metadata.name + ".part")
-            temp_metadata.write_text(json.dumps(identity, sort_keys=True), encoding="utf-8")
-            temp_metadata.replace(metadata)
+            try:
+                temp_metadata.write_text(json.dumps(identity, sort_keys=True), encoding="utf-8")
+                temp_metadata.replace(metadata)
+            finally:
+                temp_metadata.unlink(missing_ok=True)
         return dest
 
     def download_apktool(self) -> Path:

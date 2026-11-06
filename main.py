@@ -37,17 +37,11 @@ def cmd_prepare(args) -> int:
     downloader.download_apktool()
     downloader.download_apksign()
 
-    # 处理 i18n mod (从下载的文件中)
     if "i18n" in downloaded_files:
         extra_mods["i18n"] = downloaded_files["i18n"]
 
-    preparer = GamePreparer(paths)
-    preparer.prepare_all(downloaded_files, extra_mods)
-
-    registry = VersionRegistry()
-    registry.extend(list(downloader.registry))
-    registry.extend(list(preparer.registry))
-    registry.save(paths.versions_file)
+    GamePreparer(paths).prepare_all(downloaded_files, extra_mods)
+    downloader.registry.save(paths.versions_file)
 
     logger.info("准备完成！")
     return 0
@@ -227,10 +221,6 @@ def main():
         help="下载并预处理游戏资源",
         description="下载游戏文件、额外 mod，生成 ZIP 基包和 APK 解包目录。",
     )
-    prep_parser.add_argument(
-        "--tag",
-        help="版本 tag（格式: v0.5.7.9-5.0.2a-0112）",
-    )
 
     warmup_parser = subparsers.add_parser(
         "warmup",
@@ -250,10 +240,6 @@ def main():
         help="包类型（可选，默认构建两种）",
     )
     build_parser.add_argument(
-        "--tag",
-        help="版本 tag（格式: v0.5.7.9-5.0.2a-0112）",
-    )
-    build_parser.add_argument(
         "-j",
         "--jobs",
         type=int,
@@ -261,7 +247,8 @@ def main():
     )
 
     verify_parser = subparsers.add_parser("verify", help="校验完整产物集合与必需 Mod")
-    verify_parser.add_argument("--tag", help="构建版本 tag")
+    for command_parser in (prep_parser, build_parser, verify_parser):
+        command_parser.add_argument("--tag", help="版本 tag（格式: v游戏版本-汉化版本-MMDD）")
 
     page_parser = subparsers.add_parser(
         "page",

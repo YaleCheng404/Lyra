@@ -4,7 +4,6 @@ import hashlib
 import logging
 import re
 import shutil
-import subprocess
 import tarfile
 import zipfile
 from dataclasses import dataclass
@@ -52,24 +51,21 @@ def download_file(
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"下载: {url}")
-    response = requests.get(url, stream=True, timeout=60)
-    response.raise_for_status()
-
-    total_size = int(response.headers.get("content-length", 0))
-
     partial = dest.with_name(f"{dest.name}.part")
     try:
-        with open(partial, "wb") as f:
-            if quiet or total_size == 0:
+        with requests.get(url, stream=True, timeout=60) as response:
+            response.raise_for_status()
+            total_size = int(response.headers.get("content-length", 0))
+            with (
+                partial.open("wb") as stream,
+                tqdm(
+                    total=total_size, unit="B", unit_scale=True, desc=dest.name,
+                    disable=quiet or total_size == 0,
+                ) as progress,
+            ):
                 for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            else:
-                with tqdm(
-                    total=total_size, unit="B", unit_scale=True, desc=dest.name
-                ) as pbar:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                        pbar.update(len(chunk))
+                    stream.write(chunk)
+                    progress.update(len(chunk))
 
         if expected_sha256:
             actual = get_file_hash(partial, "sha256")
@@ -139,12 +135,6 @@ def _safe_tar_name(name: str, strip_components: int) -> str | None:
     return str(PurePosixPath(*parts)) if parts else None
 
 
-def copy_directory(src: Path, dest: Path):
-    """合并目录内容，后复制的资源覆盖同名文件。"""
-    logger.debug(f"复制目录: {src} -> {dest}")
-    shutil.copytree(src, dest, dirs_exist_ok=True)
-
-
 def safe_remove(path: Path) -> bool:
     """安全删除文件或目录。"""
     try:
@@ -157,19 +147,6 @@ def safe_remove(path: Path) -> bool:
     except Exception as e:
         logger.warning(f"删除失败 {path}: {e}")
     return False
-
-
-def run_command(
-    cmd: list[str],
-    cwd: Path | None = None,
-    capture_output: bool = False,
-    check: bool = True,
-) -> subprocess.CompletedProcess:
-    """运行外部命令。"""
-    logger.debug(f"运行命令: {' '.join(cmd)}")
-    return subprocess.run(
-        cmd, cwd=cwd, capture_output=capture_output, check=check, text=True
-    )
 
 
 def get_file_hash(path: Path, algorithm: str = "md5") -> str:
@@ -206,7 +183,6 @@ def get_github_release_asset(
         release_tag = release_data.get("tag_name", tag)
         assets = release_data.get("assets", [])
 
-        # 收集所有匹配的资源及其版本号
         matched_assets: list[tuple[GitHubReleaseAsset, Version]] = []
 
         for asset in assets:
@@ -236,7 +212,6 @@ def get_github_release_asset(
             logger.warning(f"未找到匹配 '{asset_pattern}' 的资源")
             return None
 
-        # 选择版本号最高的资源
         best_asset, best_version = max(matched_assets, key=lambda x: x[1])
         logger.debug(f"选择最高版本: {best_asset.name} (version={best_version})")
         return best_asset

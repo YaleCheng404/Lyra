@@ -56,7 +56,6 @@ class DownloadPageConfig:
                 "无法确定 GitHub 仓库，请传入 github_owner/github_repo 或设置 GITHUB_REPOSITORY"
             )
 
-        # 解析版本号，例如 v0.5.7.9-5.0.2a-0112
         if self.version and (
             not self.base_game_version or not self.chs_version or not self.date_suffix
         ):
@@ -69,7 +68,6 @@ class DownloadPageConfig:
                 if not self.date_suffix:
                     self.date_suffix = parts[2]
 
-        # 如果指定了版本文件，加载版本信息
         if self.versions_file and not self.version_info:
             self.version_info = list(VersionRegistry.load(self.versions_file))
 
@@ -109,8 +107,8 @@ class DownloadPageGenerator:
     def _generate_row(
         self,
         combination: ModCombination,
+        package_types: list[str],
     ) -> list[str]:
-        """生成表格行"""
         display_name = combination.display_name
 
         if combination.is_recommended and not combination.is_polyfill:
@@ -118,46 +116,27 @@ class DownloadPageGenerator:
 
         row = [display_name]
 
-        if self.config.include_zip:
+        for package_type in package_types:
             filename = self.config.get_filename(
-                combination.code, "zip", combination.is_polyfill
+                combination.code, package_type, combination.is_polyfill
             )
             github_url = self.config.get_download_url(filename)
             mirror_url = self.config.get_mirror_url(filename)
-            link = f"[Github下载]({github_url}) / [备链]({mirror_url})"
-            row.append(link)
-
-        if self.config.include_apk:
-            filename = self.config.get_filename(
-                combination.code, "apk", combination.is_polyfill
-            )
-            github_url = self.config.get_download_url(filename)
-            mirror_url = self.config.get_mirror_url(filename)
-            link = f"[Github下载]({github_url}) / [备链]({mirror_url})"
-            row.append(link)
+            row.append(f"[Github下载]({github_url}) / [备链]({mirror_url})")
 
         return row
 
     def generate_table(self, combinations: list[ModCombination]) -> str:
         """生成 Markdown 下载表格。"""
-        headers = ["版本选择"]
-        if self.config.include_zip:
-            headers.append("ZIP")
-        if self.config.include_apk:
-            headers.append("APK")
-
-        lines = []
-
-        # 表头
-        lines.append("|" + "|".join(headers) + "|")
-        lines.append("|" + "|".join(["-" * (len(h) + 20) for h in headers]) + "|")
-
-        # 数据行
-        for comb in combinations:
-            row = self._generate_row(comb)
-            lines.append("|" + "|".join(row) + "|")
-
-        return "\n".join(lines)
+        package_types = [
+            kind for kind, enabled in (
+                ("zip", self.config.include_zip), ("apk", self.config.include_apk)
+            ) if enabled
+        ]
+        headers = ["版本选择", *(kind.upper() for kind in package_types)]
+        rows = [headers, ["---"] * len(headers)]
+        rows.extend(self._generate_row(combination, package_types) for combination in combinations)
+        return "\n".join("|" + "|".join(row) + "|" for row in rows)
 
     def generate(self) -> str:
         """生成下载表格、组合说明与资源版本记录。"""
@@ -222,7 +201,6 @@ class DownloadPageGenerator:
 
         for v in self.config.version_info:
             source = v.source or "-"
-            # 如果来源是 GitHub/GitGud，生成链接
             if "github.com" in source or "/" in source:
                 if "gitgud.io" in source:
                     source_link = f"[{source}](https://{source})"
