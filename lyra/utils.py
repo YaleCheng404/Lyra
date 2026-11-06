@@ -228,31 +228,3 @@ def _extract_version_from_filename(filename: str) -> str:
     """从文件名提取版本号。"""
     match = re.search(r"[_-](v?\d+\.\d+\.\d+[^.]*)\.zip", filename, re.IGNORECASE)
     return match.group(1) if match else "unknown"
-
-
-def get_gitgud_commit_hash(repo: str, branch: str = "master") -> str | None:
-    """获取 GitGud 仓库的最新 commit hash。"""
-    try:
-        # GitGud API: https://gitgud.io/api/v4/projects/:id/repository/branches/:branch
-        # 需要将 / 编码为 %2F
-        encoded_repo = repo.replace("/", "%2F")
-        api_url = f"https://gitgud.io/api/v4/projects/{encoded_repo}/repository/branches/{branch}"
-
-        logger.debug(f"获取 GitGud commit hash: {api_url}")
-
-        response = requests.get(api_url, timeout=10)
-        response.raise_for_status()
-
-        data = response.json()
-        commit = data.get("commit", {})
-        full_hash = commit.get("id", "")
-
-        if full_hash:
-            short_hash = full_hash[:7]
-            logger.debug(f"GitGud {repo} commit: {short_hash}")
-            return short_hash
-
-        return None
-    except Exception as e:
-        logger.warning(f"获取 GitGud commit hash 失败: {e}")
-        return None

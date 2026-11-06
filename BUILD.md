@@ -98,7 +98,7 @@ hugo --source hub --destination public --baseURL https://example.github.io/Lyra/
 - 基包或美化资源缺失时，依次运行 `prepare`、`warmup`，再运行 `build`。
 - 工具摘要校验失败时，核对官方资源及配置中的摘要；不要绕过校验。
 - APK 重建失败时检查 Java、Apktool 输出和 AndroidManifest 替换规则；签名失败时检查 `dol.jks` 与 alias。签名工具无法定位 zipalign 时，检查 PATH 目录是否可列举，并把可用的 zipalign 目录放到 PATH 前部；手工调用也可使用上游的 `--zipAlignPath` 参数。
-- GitGud 图片归档返回 HTTP 429 时，预热会按服务端的 `Retry-After` 等待并重试，最多重试 10 次。持续失败时检查 GitGud 连接与限额。
+- 默认 DoL+ 图片资源使用 Git 浅克隆，预热只检出配置所需的图片包目录。请确认 `git` 可用。自定义归档遇到 HTTP 429 时，会按服务端的 `Retry-After` 等待，最多重试 10 次。
 - 基础 Mod 每次准备时查询最新正式 Release，同一仓库共用一次查询结果。缓存通过附件 SHA-256 或完整来源身份校验，同名附件被替换后重新下载。
 - 本地虚拟环境解释器路径失效时，重新创建环境并安装锁文件。
 

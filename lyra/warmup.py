@@ -2,6 +2,9 @@
 
 import logging
 import shutil
+import subprocess
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from requests import Session
 from requests.adapters import HTTPAdapter
@@ -17,13 +20,18 @@ from .paths import BuildPaths
 from .utils import (
     download_file,
     extract_tar_gz,
-    get_gitgud_commit_hash,
     get_github_release_asset,
     safe_remove,
 )
 from .version import VersionInfo, VersionRegistry
 
 logger = logging.getLogger(__name__)
+
+DOLP_SOURCE = "gitgud.io/Frostberg/degrees-of-lewdity-plus"
+DOLP_ARCHIVE_PREFIX = (
+    f"https://{DOLP_SOURCE}/-/archive/master/"
+    "degrees-of-lewdity-plus-master.tar.gz?path=imagepacks/"
+)
 
 
 class ResourceWarmer:
@@ -55,19 +63,61 @@ class ResourceWarmer:
 
         urls = {url for pack in self.config.imagepacks.values() for url in pack.urls}
 
-        commit_hash = get_gitgud_commit_hash(
-            "Frostberg/degrees-of-lewdity-plus", "master"
-        )
-        if commit_hash:
+        git_urls = {url for url in urls if url.startswith(DOLP_ARCHIVE_PREFIX)}
+        git_names = sorted(url.removeprefix(DOLP_ARCHIVE_PREFIX) for url in git_urls)
+        missing = [
+            name for name in git_names
+            if not (self.paths.temp_dir / f"dolp-{name}" / "img").is_dir()
+        ]
+        if missing:
+            commit_hash = self._checkout_dolp_packs(missing)
             self.registry.add(
                 VersionInfo(
                     name="DoL+",
                     version=commit_hash,
-                    source="gitgud.io/Frostberg/degrees-of-lewdity-plus",
+                    source=DOLP_SOURCE,
                 )
             )
 
-        # GitGud's archive endpoint returns 429 with Retry-After under load.
+        self._download_archives(sorted(urls - git_urls))
+        for pack in self.config.imagepacks.values():
+            self._process_image_pack(pack)
+
+    def _checkout_dolp_packs(self, names: list[str]) -> str:
+        # GitGud limits archive downloads. A single sparse checkout fetches these paths.
+        folders = [f"imagepacks/{name}" for name in names]
+        if any(not name or name in {".", ".."} or "/" in name or "\\" in name for name in names):
+            raise ValueError("DoL+ 图片包目录名称无效")
+        logger.info("从 Git 获取 DoL+ 图片包: %s", ", ".join(names))
+        with TemporaryDirectory(dir=self.paths.temp_dir, prefix="dolp-src-") as directory:
+            checkout = Path(directory) / "repo"
+            subprocess.run(
+                [
+                    "git", "clone", "--depth", "1", "--single-branch", "--no-checkout",
+                    "--filter=blob:none", "--branch", "master", "--config", "core.autocrlf=false",
+                    "--config", "core.longpaths=true", f"https://{DOLP_SOURCE}.git", str(checkout),
+                ],
+                check=True,
+            )
+            git = ["git", "-C", str(checkout)]
+            tree = subprocess.check_output([*git, "ls-tree", "-r", "HEAD", "--", *folders])
+            if any(entry.startswith((b"120000 ", b"160000 ")) for entry in tree.splitlines()):
+                raise ValueError("DoL+ 图片包包含符号链接或子模块")
+            subprocess.run([*git, "sparse-checkout", "set", "--cone", "--", *folders], check=True)
+            subprocess.run([*git, "checkout", "--detach", "HEAD"], check=True)
+            sources = [checkout / folder for folder in folders]
+            for source in sources:
+                if not source.is_dir():
+                    raise FileNotFoundError(f"上游缺少图片包: {source.name}")
+            for source in sources:
+                destination = self.paths.temp_dir / f"dolp-{source.name}" / "img"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source.rename(destination)
+            return subprocess.check_output([*git, "rev-parse", "--short=7", "HEAD"], text=True).strip()
+
+    def _download_archives(self, urls: list[str]):
+        if not urls:
+            return
         retries = Retry(
             total=10,
             connect=0,
@@ -82,10 +132,8 @@ class ResourceWarmer:
         with Session() as session:
             for scheme in ("http://", "https://"):
                 session.mount(scheme, HTTPAdapter(max_retries=retries))
-            for url in sorted(urls):
+            for url in urls:
                 self._download_dolp_pack(url, session)
-        for pack in self.config.imagepacks.values():
-            self._process_image_pack(pack)
 
     def _download_dolp_pack(self, url: str, session: Session):
         """下载单个 DoL+ 图片包。"""

@@ -54,7 +54,6 @@ class BuildFlowTests(unittest.TestCase):
             try:
                 with (
                     tempfile.TemporaryDirectory() as directory,
-                    patch("lyra.warmup.get_gitgud_commit_hash", return_value=None),
                     patch("urllib3.util.retry.time.sleep") as sleep,
                 ):
                     paths = BuildPaths(workspace=Path(directory))
