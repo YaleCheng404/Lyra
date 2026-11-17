@@ -108,4 +108,4 @@ hugo --source hub --destination public --baseURL https://example.github.io/Lyra/
 
 所有组合包含秋枫白桦框架、枯木逢春本体与音频、默示录：归途之书及极致动态 Dynamicest。按配置顺序原样内嵌 `.mod.zip` 和 `.modpack`；asset_pattern 使用 glob 且必须唯一匹配，required = true 的资源获取失败会终止准备。
 
-完成构建后运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023`，校验完整产物集合、压缩包 CRC、HTML 内必需 Mod 的字节和顺序，并生成 `output/release-notes.md`。CI 在上传附件和发布前执行相同检查。手动发布使用 Build 的 `release_tag` 输入。首次配置下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。
+完成构建后运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023`，校验完整产物集合、压缩包 CRC、HTML 内必需 Mod 的字节和顺序，并生成 `output/release-notes.md`。CI 在上传附件前还会使用 Android SDK Build Tools 35.0.0 的 `apksigner verify --verbose --print-certs` 验证每一个 APK 的签名完整性；任何 APK 验证失败或未生成 APK，均会阻止后续附件上传与发布。本地排查可运行 `apksigner verify --verbose --print-certs output/文件名.apk`。手动发布使用 Build 的 `release_tag` 输入。首次配置下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。
