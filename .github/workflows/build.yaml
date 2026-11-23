@@ -139,11 +139,15 @@ jobs:
           fi
           python main.py verify --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" -v
 
+      - name: Set up Android APK verification tools
+        uses: android-actions/setup-android@138b5fb1cf087fdb4c5f3c621466fe304d0cf2e3 # v4.0.3
+        with:
+          packages: "build-tools;35.0.0"
+
       - name: Verify APK signatures
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager --install "build-tools;35.0.0"
           APKSIGNER="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK not configured}}/build-tools/35.0.0/apksigner"
           test -x "$APKSIGNER" || { echo "apksigner unavailable: $APKSIGNER" >&2; exit 1; }
 
