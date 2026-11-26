@@ -19,7 +19,6 @@ class ModCombination:
     binary: str = ""
     display_name: str = ""
     is_recommended: bool = False
-    is_polyfill: bool = False
 
     def __post_init__(self):
         if not self.binary:
@@ -30,11 +29,11 @@ class ModCombination:
 
     def __eq__(self, other):
         if isinstance(other, ModCombination):
-            return self.code == other.code and self.is_polyfill == other.is_polyfill
+            return self.code == other.code
         return False
 
     def __hash__(self):
-        return hash((self.code, self.is_polyfill))
+        return hash(self.code)
 
 
 class CombinationCalculator:
@@ -139,7 +138,7 @@ class CombinationCalculator:
 
         return "+".join(parts) if parts else "基础"
 
-    def calculate(self, include_polyfill: bool = True) -> list[ModCombination]:
+    def calculate(self) -> list[ModCombination]:
         """计算所有有效的MOD组合。"""
         combinations = []
         config = self.combinations_config
@@ -171,34 +170,15 @@ class CombinationCalculator:
         # 排序：推荐的放前面，然后按code排序
         combinations.sort(key=lambda x: (-x.is_recommended, x.code))
 
-        if include_polyfill and config.polyfill_enabled:
-            self._validate_code(config.polyfill_code)
-            polyfill_comb = ModCombination(
-                code=config.polyfill_code,
-                display_name=self._get_display_name(config.polyfill_code) + "(兼容版)",
-                is_recommended=False,
-                is_polyfill=True,
-            )
-            combinations.insert(0, polyfill_comb)
-
         return combinations
 
-    def get_build_codes(self, include_polyfill: bool = True) -> list[str]:
+    def get_build_codes(self) -> list[str]:
         """获取用于构建的code列表（字符串格式）。"""
-        combinations = self.calculate(include_polyfill=include_polyfill)
-        codes = []
-
-        for comb in combinations:
-            if comb.is_polyfill:
-                codes.append(f"polyfill-{comb.code}")
-            else:
-                codes.append(str(comb.code))
-
-        return codes
+        return [str(combination.code) for combination in self.calculate()]
 
     def to_string(self) -> str:
         """生成组合详情字符串（用于组合对照）。"""
-        combinations = self.calculate(include_polyfill=False)  # 组合对照不包含 polyfill
+        combinations = self.calculate()
         lines = []
 
         for comb in combinations:

@@ -8,8 +8,3 @@ whitelist = [1282]
 
 # 黑名单（排除的组合）
 blacklist = []
-
-# Polyfill 配置
-[polyfill]
-enabled = true
-code = 3

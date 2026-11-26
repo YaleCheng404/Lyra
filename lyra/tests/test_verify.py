@@ -7,7 +7,6 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from lyra.build import BuildTask
 from lyra.combo import CombinationCalculator
 from lyra.config_loader import load_build_config
 from lyra.paths import BuildPaths
@@ -45,10 +44,7 @@ class VerifyTests(unittest.TestCase):
         self.targets = []
         for code in CombinationCalculator().get_build_codes():
             for kind in ("zip", "apk"):
-                task = BuildTask.from_code_str(code, kind, self.version, self.paths)
-                path = self.paths.output_dir / package_filename(
-                    task.version, task.mod_code, task.pack_type, task.is_polyfill
-                )
+                path = self.paths.output_dir / package_filename(self.version, int(code), kind)
                 html_name = "assets/www/index.html" if kind == "apk" else "game.html"
                 self.targets.append((path, html_name))
                 self.write_package(path, html_name, self.payloads)
@@ -61,7 +57,7 @@ class VerifyTests(unittest.TestCase):
 
     def test_complete_release_and_notes(self):
         report = verify_packages(self.paths, self.version)
-        self.assertEqual(len(report), 16)
+        self.assertEqual(len(report), 14)
         self.assertEqual(len(report[0]["required_mods"]), 5)
         self.assertIn(
             "Dynamicest",

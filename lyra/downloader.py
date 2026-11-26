@@ -49,12 +49,6 @@ class Downloader:
 
         required_patterns = [
             (
-                "polyfill_apk",
-                lambda name: (
-                    name.lower().endswith(".apk") and "polyfill" in name.lower()
-                ),
-            ),
-            (
                 "apk",
                 lambda name: (
                     name.lower().endswith(".apk") and "polyfill" not in name.lower()
@@ -67,10 +61,6 @@ class Downloader:
                     and "ModLoader" in name
                     and "polyfill" not in name.lower()
                 ),
-            ),
-            (
-                "polyfill_zip",
-                lambda name: name.endswith(".zip") and "polyfill" in name.lower(),
             ),
             (
                 "image_pack",

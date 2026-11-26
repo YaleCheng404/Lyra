@@ -14,7 +14,7 @@ python main.py --help
 java -version
 ```
 
-APK 构建需要仓库根目录中的 `dol.jks`，alias 为 `dol`，当前签名工具使用密码 `dolchs`。CI 从 `SIGNING_KEY` secret 还原密钥，未配置时生成临时密钥。固定密钥用于保持 APK 更新签名一致；密钥文件不应提交到 Git。
+APK 构建需要仓库根目录中的 `dol.jks`，alias 为 `dol`，当前签名工具使用密码 `dolchs`。正式发布通过 `SIGNING_KEY` 还原固定密钥，以保持 APK 更新签名一致。开发构建可使用临时密钥。密钥文件仅保存在本地或仓库 Secret 中。
 
 ## 构建
 
@@ -38,7 +38,7 @@ python main.py matrix --output-format shell
 python main.py check --github-owner OWNER --github-repo REPO
 ```
 
-`build` 默认构建 ZIP 和 APK，包含配置启用的 polyfill 组合。当前配置共 8 个构建代码，对应 16 个 ZIP/APK 目标。修改组合应编辑配置文件。
+`build` 默认构建 ZIP 和 APK。当前配置共 7 个组合，对应 14 个 ZIP/APK 目标。修改组合应编辑配置文件。
 
 `prepare`、`warmup`、`build` 和 `verify` 支持 `--workspace PATH`，默认当前目录。输出位于该目录下的 `output/`，基包和版本记录位于 `base/`，中间文件位于 `workspace/`。`page` 的输入和输出路径通过参数独立指定。APK 签名密钥始终从运行目录的 `dol.jks` 读取。
 
@@ -50,11 +50,11 @@ python main.py check --github-owner OWNER --github-repo REPO
 | --- | --- |
 | `config/build.toml` | 上游地址、工具 URL 与 SHA-256、目录、APK 替换规则、图片包及基础 Mod |
 | `config/features.toml` | 功能位、显示名称、依赖与冲突关系 |
-| `config/combinations.toml` | 推荐组合、白名单、黑名单与 polyfill 组合 |
+| `config/combinations.toml` | 推荐组合、白名单和黑名单 |
 
-产物格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。整合包 tag 格式为 `v{游戏版本}-{汉化版本}-{四位日期}`，例如 `v0.5.12.13-1.0.1a-1023`。
+产物格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-组合后缀]-{日期}.{zip,apk}`。整合包 tag 格式为 `v{游戏版本}-{汉化版本}-{四位日期}`，例如 `v0.5.12.13-1.0.1a-1023`。
 
-图片包按 `build.toml` 中的 URL 顺序合并，并应用 `case_fixes` 与 `files_to_remove`。构建时美化按 BESC、Hikari、UCB 顺序覆盖；基础 Mod 按配置顺序注入。`base/versions.json` 记录已解析的资源版本，下载页和包内 Lyra 信息 Mod 使用该记录。并行任务按包类型、组合和兼容模式隔离工作目录。
+图片包按 `build.toml` 中的 URL 顺序合并，并应用 `case_fixes` 与 `files_to_remove`。构建时美化按 BESC、Hikari、UCB 顺序覆盖，基础 Mod 按配置顺序注入。`base/versions.json` 记录已解析的资源版本，下载页和包内 Lyra 信息 Mod 使用该记录。并行任务按包类型和组合隔离工作目录。
 
 ## 手工编辑 Mod
 
@@ -83,7 +83,7 @@ uv pip check
 python -m unittest discover -v
 python -m compileall -q main.py lyra scripts
 python -m playwright install chromium
-python scripts/browser_smoke.py output/普通版.zip output/兼容版.zip
+python scripts/browser_smoke.py output/DoL-0.5.12.13-Lyra-1.0.1a-besc-1023.zip
 ```
 
 GitHub Actions 固定完整提交 SHA，Dependabot 每周检查 Python 和 Action 更新。Apktool 或签名工具升级时，需要同时更新 `config/build.toml` 中的官方下载 URL 和 SHA-256，并实际检查 APK 解包、重建及签名。下载站的 Hugo 版本在 Build workflow 中指定。

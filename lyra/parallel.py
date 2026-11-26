@@ -25,17 +25,10 @@ def build_all_parallel(
     version: LyraVersion | None = None,
     pack_types: list[str] | None = None,
     max_workers: int | None = None,
-    include_polyfill: bool = True,
     verbose: bool = False,
 ) -> tuple[int, int]:
     """按包类型分批构建，返回成功数和失败数。"""
-    codes = sorted(
-        CombinationCalculator().get_build_codes(include_polyfill=include_polyfill),
-        key=lambda code: (
-            code.startswith("polyfill-"),
-            int(code.removeprefix("polyfill-")),
-        ),
-    )
+    codes = sorted(map(int, CombinationCalculator().get_build_codes()))
     pack_types = pack_types or ["zip", "apk"]
     if max_workers is None:
         max_workers = min(os.cpu_count() or 4, 4)
@@ -49,7 +42,7 @@ def build_all_parallel(
             futures = {
                 executor.submit(
                     _build_task_worker,
-                    BuildTask.from_code_str(code, pack_type, version, paths),
+                    BuildTask(pack_type, code, version, paths),
                     verbose,
                 ): code
                 for code in codes

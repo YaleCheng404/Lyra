@@ -70,7 +70,7 @@ class BuildFlowTests(unittest.TestCase):
                 thread.join()
 
     @patch("lyra.downloader.download_file")
-    def test_upstream_selects_distinct_normal_and_polyfill_apks(self, download):
+    def test_upstream_ignores_compatibility_assets(self, download):
         names = [
             "DoL-ModLoader-polyfill.APK",
             "DoL-ModLoader.APK",
@@ -94,8 +94,9 @@ class BuildFlowTests(unittest.TestCase):
             with patch.object(downloader, "_get_github_release", return_value=release):
                 files = downloader.download_from_chs_repo()
         self.assertEqual(files["apk"].name, "DoL-ModLoader.APK")
-        self.assertEqual(files["polyfill_apk"].name, "DoL-ModLoader-polyfill.APK")
-        self.assertEqual(download.call_count, 6)
+        self.assertEqual(files["zip"].name, "DoL-ModLoader.zip")
+        self.assertEqual(set(files), {"apk", "zip", "image_pack", "i18n"})
+        self.assertEqual(download.call_count, 4)
 
     def test_image_pack_config_controls_merge_order_fixes_and_removals(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -119,19 +120,17 @@ class BuildFlowTests(unittest.TestCase):
             self.assertIn("shoulder.png", [path.name for path in result.iterdir()])
             self.assertFalse((result / "remove.png").exists())
 
-    def test_prepare_reuses_images_and_keeps_normal_and_polyfill_separate(self):
+    def test_prepare_reuses_images_for_zip_and_apk(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             paths = BuildPaths(workspace=root)
             preparer = GamePreparer(paths)
             preparer.config = replace(preparer.config, base_mods=[], apk_replacements=[])
-            files = {key: root / f"{key}.zip" for key in (
-                "zip", "polyfill_zip", "apk", "polyfill_apk", "image_pack"
-            )}
+            files = {key: root / f"{key}.zip" for key in ("zip", "apk", "image_pack")}
             with ZipFile(files["image_pack"], "w") as archive:
                 archive.writestr("pack/img/same.png", b"overlay")
-            for key in ("zip", "polyfill_zip", "apk", "polyfill_apk"):
-                prefix = "assets/www/" if key.endswith("apk") else ""
+            for key in ("zip", "apk"):
+                prefix = "assets/www/" if key == "apk" else ""
                 with ZipFile(files[key], "w") as archive:
                     archive.writestr(prefix + "index.html", key)
                     archive.writestr(prefix + "img/same.png", b"original")
@@ -155,20 +154,15 @@ class BuildFlowTests(unittest.TestCase):
                     archive.writestr("index.html", "zip")
                 preparer.prepare_all(files, {})
 
-            for polyfill, prefix in ((False, ""), (True, "polyfill_")):
-                with ZipFile(paths.get_base_zip(polyfill)) as archive:
-                    self.assertEqual(archive.read("index.html").decode(), prefix + "zip")
-                    self.assertEqual(archive.read("img/same.png"), b"overlay")
-                    self.assertNotIn("obsolete.png", archive.namelist())
-                    if polyfill:
-                        self.assertEqual(archive.read("img/keep.png"), b"keep")
-                apk = paths.get_apk_dir(polyfill) / "assets/www"
-                self.assertEqual((apk / "index.html").read_text(), prefix + "apk")
-                self.assertEqual((apk / "img/same.png").read_bytes(), b"overlay")
-                self.assertEqual((apk / "img/keep.png").read_bytes(), b"keep")
-            self.assertEqual(
-                {p.name for p in paths.prepare_dir.iterdir()}, {"apk", "apk-polyfill"}
-            )
+            with ZipFile(paths.get_base_zip()) as archive:
+                self.assertEqual(archive.read("index.html"), b"zip")
+                self.assertEqual(archive.read("img/same.png"), b"overlay")
+                self.assertNotIn("obsolete.png", archive.namelist())
+            apk = paths.get_apk_dir() / "assets/www"
+            self.assertEqual((apk / "index.html").read_text(), "apk")
+            self.assertEqual((apk / "img/same.png").read_bytes(), b"overlay")
+            self.assertEqual((apk / "img/keep.png").read_bytes(), b"keep")
+            self.assertEqual({p.name for p in paths.prepare_dir.iterdir()}, {"apk"})
 
     def test_prepare_failure_cleans_extraction_and_preserves_base(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -183,7 +177,7 @@ class BuildFlowTests(unittest.TestCase):
             base = paths.get_base_zip()
             base.write_bytes(b"existing base")
             with self.assertRaisesRegex(FileNotFoundError, "未找到游戏 HTML"):
-                preparer.prepare_all({"zip": source, "image_pack": source}, {})
+                preparer.prepare_all({"zip": source, "apk": source, "image_pack": source}, {})
             self.assertEqual(base.read_bytes(), b"existing base")
             self.assertEqual(list(paths.prepare_dir.iterdir()), [])
             self.assertEqual(list(paths.base_dir.iterdir()), [base])
@@ -205,16 +199,15 @@ class BuildFlowTests(unittest.TestCase):
 
             with patch("lyra.prepare.subprocess.run", side_effect=fail):
                 with self.assertRaises(CalledProcessError):
-                    preparer.prepare_all({"apk": Path("input.apk")}, {})
+                    preparer._prepare_apk(Path("input.apk"), None, {})
             self.assertEqual((apk_dir / "original").read_bytes(), b"old")
             self.assertEqual(list(paths.prepare_dir.iterdir()), [apk_dir])
 
-    def test_all_16_output_names_match_download_links(self):
+    def test_all_14_output_names_match_download_links(self):
         codes = CombinationCalculator().get_build_codes()
         self.assertEqual(
             set(codes),
             {
-                "polyfill-3",
                 "3",
                 "35",
                 "1026",
@@ -229,14 +222,12 @@ class BuildFlowTests(unittest.TestCase):
         page = DownloadPageGenerator(config).generate()
         for kind in ("zip", "apk"):
             for code in codes:
-                task = BuildTask.from_code_str(code, kind, version)
-                filename = package_filename(
-                    task.version, task.mod_code, task.pack_type, task.is_polyfill
-                )
+                task = BuildTask(kind, int(code), version)
+                filename = package_filename(task.version, task.mod_code, task.pack_type)
                 with self.subTest(kind=kind, code=code):
                     self.assertEqual(
                         filename,
-                        config.get_filename(task.mod_code, kind, task.is_polyfill),
+                        config.get_filename(task.mod_code, kind),
                     )
                     self.assertIn(config.get_download_url(filename), page)
 
@@ -245,13 +236,13 @@ class BuildFlowTests(unittest.TestCase):
     def test_parallel_counts_failed_results_and_worker_exceptions(
         self, pool, calculator
     ):
-        calculator.return_value.get_build_codes.return_value = ["3", "2", "polyfill-3"]
+        calculator.return_value.get_build_codes.return_value = ["3", "2", "35"]
         tasks = []
 
         def submit(worker, task, verbose):
             tasks.append(task)
             future = Future()
-            if task.is_polyfill:
+            if task.mod_code == 35:
                 future.set_exception(RuntimeError("worker stopped"))
             else:
                 future.set_result((task.mod_code == 2, "build failed"))

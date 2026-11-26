@@ -23,14 +23,10 @@ def verify_packages(
 ) -> list[dict]:
     """校验所有目标；任何缺包、额外包或 Mod 载荷差异均阻止发布。"""
     expected = {}
-    for code in CombinationCalculator().get_build_codes():
+    codes = CombinationCalculator().get_build_codes()
+    for code in codes:
         for kind in ("zip", "apk"):
-            name = package_filename(
-                version,
-                int(code.removeprefix("polyfill-")),
-                kind,
-                code.startswith("polyfill-"),
-            )
+            name = package_filename(version, int(code), kind)
             expected[name] = kind
     actual = {
         p.name for p in paths.output_dir.iterdir() if p.suffix in {".zip", ".apk"}
@@ -129,7 +125,7 @@ def verify_packages(
     notes.extend(
         [
             "",
-            "提供 BESC、Hikari、UCB 和 AU-F，共八种组合、16 个 ZIP/APK 文件。",
+            f"提供 BESC、Hikari、UCB 和 AU-F，共 {len(codes)} 种组合、{len(expected)} 个 ZIP/APK 文件。",
             "发现上游汉化更新后，同步最新正式版 Mod 并发布。",
             "",
             "升级前请导出并备份存档。音频包随整合提供，可在模组设置中启用。",

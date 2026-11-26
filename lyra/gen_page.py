@@ -85,12 +85,12 @@ class DownloadPageConfig:
         tag = self.version
         return f"{self.mirror_base}/{self.github_owner}/{self.github_repo}/releases/download/{tag}/{filename}"
 
-    def get_filename(self, mod_code: int, ext: str, is_polyfill: bool = False) -> str:
+    def get_filename(self, mod_code: int, ext: str) -> str:
         """生成文件名。"""
         version = LyraVersion(
             self.base_game_version, self.chs_version, self.date_suffix
         )
-        return package_filename(version, mod_code, ext, is_polyfill)
+        return package_filename(version, mod_code, ext)
 
 
 class DownloadPageGenerator:
@@ -111,15 +111,13 @@ class DownloadPageGenerator:
     ) -> list[str]:
         display_name = combination.display_name
 
-        if combination.is_recommended and not combination.is_polyfill:
+        if combination.is_recommended:
             display_name = f"***{display_name}(推荐)***"
 
         row = [display_name]
 
         for package_type in package_types:
-            filename = self.config.get_filename(
-                combination.code, package_type, combination.is_polyfill
-            )
+            filename = self.config.get_filename(combination.code, package_type)
             github_url = self.config.get_download_url(filename)
             mirror_url = self.config.get_mirror_url(filename)
             row.append(f"[Github下载]({github_url}) / [备链]({mirror_url})")
@@ -141,9 +139,8 @@ class DownloadPageGenerator:
     def generate(self) -> str:
         """生成下载表格、组合说明与资源版本记录。"""
         combinations = sorted(
-            self.calculator.calculate(include_polyfill=True),
+            self.calculator.calculate(),
             key=lambda combo: (
-                not combo.is_polyfill,
                 not combo.is_recommended,
                 combo.display_name != "基础",
                 combo.code,

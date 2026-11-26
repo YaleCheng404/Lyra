@@ -7,7 +7,7 @@ slug = 'troubleshoot'
 
 ## APK 打开后是英文或没有 ModLoader
 
-先更新系统 WebView。仍无法使用时，尝试 polyfill 兼容版，或使用现代浏览器打开 ZIP/HTML 版本。
+先更新系统 WebView。仍无法使用时，可用现代浏览器打开 ZIP 版中的 HTML。
 
 ## ModLoader 加载 zip 提示 boot.json 无效
 

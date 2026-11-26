@@ -114,15 +114,12 @@ def package_filename(
     version: LyraVersion | None,
     mod_code: int,
     pack_type: str,
-    is_polyfill: bool = False,
 ) -> str:
     """构建、下载页和发布校验使用相同的产物命名规则。"""
     if version is None:
         date = datetime.now(timezone(timedelta(hours=8))).strftime("%m%d")
         version = LyraVersion("unknown", "unknown", date)
     parts = [f"DoL-{version.dol_ver}-Lyra-{version.chs_ver}"]
-    if is_polyfill:
-        parts.append("polyfill")
     suffix = ModCode(mod_code).get_suffix()
     if suffix:
         parts.append(suffix)

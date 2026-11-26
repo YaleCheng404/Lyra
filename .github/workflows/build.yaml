@@ -96,9 +96,13 @@ jobs:
         shell: bash
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          IS_RELEASE: ${{ steps.meta.outputs.is_release }}
         run: |
           if [[ -n "$SIGNING_KEY" ]]; then
             printf '%s' "$SIGNING_KEY" | base64 -d > dol.jks
+          elif [[ "$IS_RELEASE" == "true" ]]; then
+            echo "SIGNING_KEY is required to publish APKs" >&2
+            exit 1
           else
             keytool -genkeypair \
               -alias dol \
@@ -173,11 +177,12 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m playwright install --with-deps chromium
 
-      - name: Verify normal and polyfill browser runtime
+      - name: Verify browser runtime
         run: |
-          NORMAL=$(find "$BUILD_WORKSPACE/output" -maxdepth 1 -type f -name '*-besc-[0-9]*.zip' ! -name '*-polyfill-*')
-          POLYFILL=$(find "$BUILD_WORKSPACE/output" -maxdepth 1 -type f -name '*-polyfill-besc-*.zip')
-          python scripts/browser_smoke.py "$NORMAL" "$POLYFILL"
+          shopt -s nullglob
+          archives=("$BUILD_WORKSPACE"/output/*-besc-[0-9][0-9][0-9][0-9].zip)
+          (( ${#archives[@]} == 1 )) || { echo "Expected one BESC ZIP" >&2; exit 1; }
+          python scripts/browser_smoke.py "${archives[0]}"
 
       - name: Upload browser checks
         if: always()

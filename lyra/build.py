@@ -24,38 +24,12 @@ class BuildTask:
 
     pack_type: str  # zip 或 apk
     mod_code: int  # MOD代码
-    is_polyfill: bool = False  # 是否为polyfill版本
     version: LyraVersion | None = None  # 版本信息
     paths: BuildPaths | None = None  # 路径管理器
 
     def __post_init__(self):
         if self.paths is None:
             self.paths = BuildPaths()
-
-    @property
-    def code_str(self) -> str:
-        """获取构建代码字符串"""
-        prefix = "polyfill-" if self.is_polyfill else ""
-        return f"{prefix}{self.mod_code}"
-
-    @classmethod
-    def from_code_str(
-        cls,
-        code_str: str,
-        pack_type: str,
-        version: LyraVersion | None = None,
-        paths: BuildPaths | None = None,
-    ) -> "BuildTask":
-        """从代码字符串创建任务。"""
-        is_polyfill = code_str.startswith("polyfill-")
-        mod_code = int(code_str.removeprefix("polyfill-"))
-        return cls(
-            pack_type=pack_type,
-            mod_code=mod_code,
-            is_polyfill=is_polyfill,
-            version=version,
-            paths=paths,
-        )
 
 
 @dataclass
@@ -81,11 +55,9 @@ class PackageBuilder:
             raise ValueError(f"不支持的包类型: {task.pack_type}")
         self.paths = task.paths
         self.mod_code = ModCode(task.mod_code)
-        self.work_dir = self.paths.get_build_work_dir(
-            self.pack_type, task.mod_code, task.is_polyfill
-        )
+        self.work_dir = self.paths.get_build_work_dir(self.pack_type, task.mod_code)
         self.lyra_mod_path = (
-            self.paths.temp_dir / f"Lyra-{self.pack_type}-{task.code_str}.mod.zip"
+            self.paths.temp_dir / f"Lyra-{self.pack_type}-{task.mod_code}.mod.zip"
         )
 
     @property
@@ -146,23 +118,21 @@ class PackageBuilder:
 
     def build(self) -> BuildResult:
         output = self.paths.output_dir / package_filename(
-            self.task.version, self.task.mod_code, self.pack_type, self.task.is_polyfill
+            self.task.version, self.task.mod_code, self.pack_type
         )
         partial = output.with_name(output.name + ".part")
-        tmp_apk = self.paths.get_temp_apk(self.task.mod_code, self.task.is_polyfill)
-        signed_dir = self.paths.get_signed_dir(
-            self.task.mod_code, self.task.is_polyfill
-        )
-        logger.info("构建 %s: %s", self.pack_type.upper(), self.task.code_str)
+        tmp_apk = self.paths.get_temp_apk(self.task.mod_code)
+        signed_dir = self.paths.get_signed_dir(self.task.mod_code)
+        logger.info("构建 %s: %s", self.pack_type.upper(), self.task.mod_code)
         try:
             safe_remove(self.work_dir)
             if self.pack_type == "zip":
                 extract_zip(
-                    self.paths.get_base_zip(self.task.is_polyfill), self.work_dir
+                    self.paths.get_base_zip(), self.work_dir
                 )
             else:
                 shutil.copytree(
-                    self.paths.get_apk_dir(self.task.is_polyfill), self.work_dir,
+                    self.paths.get_apk_dir(), self.work_dir,
                     dirs_exist_ok=True,
                 )
                 safe_remove(signed_dir)
@@ -193,7 +163,7 @@ class PackageBuilder:
         logger.debug("重新编译APK...")
 
         apktool_path = self.paths.apktool_path
-        tmp_apk = self.paths.get_temp_apk(self.task.mod_code, self.task.is_polyfill)
+        tmp_apk = self.paths.get_temp_apk(self.task.mod_code)
 
         subprocess.run(
             [
@@ -216,9 +186,7 @@ class PackageBuilder:
         logger.debug("签名APK...")
 
         apksign_path = self.paths.apksign_path
-        signed_dir = self.paths.get_signed_dir(
-            self.task.mod_code, self.task.is_polyfill
-        )
+        signed_dir = self.paths.get_signed_dir(self.task.mod_code)
         signed_dir.mkdir(parents=True, exist_ok=True)
 
         subprocess.run(

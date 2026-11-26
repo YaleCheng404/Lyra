@@ -127,20 +127,17 @@ class ModSourceTests(unittest.TestCase):
                 mods[mod.key] = path
                 expected.append(base64.b64encode(path.read_bytes()).decode("ascii"))
         from scripts.modmagic import extract_mod_list
-        for name in ("normal.html", "polyfill.html", "apk.html", "polyfill-apk.html"):
+        for name in ("zip.html", "apk.html"):
             html = self.root / name
             html.write_text("window.modDataValueZipList = [];", encoding="utf-8")
             GamePreparer(self.paths)._inject_mods(html, mods)
             self.assertEqual(extract_mod_list(html.read_text(encoding="utf-8")), expected)
 
-    def test_removed_bits_rejected_in_whitelist_and_polyfill(self):
+    def test_removed_bits_rejected_in_whitelist(self):
         calculator = CombinationCalculator()
         self.assertTrue(calculator._should_skip(514))
         with patch.object(type(calculator), "combinations_config", new_callable=PropertyMock) as config:
-            config.return_value = SimpleNamespace(whitelist=[514], recommended=[], blacklist=[], polyfill_enabled=False)
-            with self.assertRaisesRegex(ValueError, "未定义"):
-                calculator.calculate()
-            config.return_value = SimpleNamespace(whitelist=[], recommended=[], blacklist=[], polyfill_enabled=True, polyfill_code=2050)
+            config.return_value = SimpleNamespace(whitelist=[514], recommended=[], blacklist=[])
             with self.assertRaisesRegex(ValueError, "未定义"):
                 calculator.calculate()
 

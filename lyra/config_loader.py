@@ -31,18 +31,13 @@ class CombinationsConfig:
     recommended: list[int] = field(default_factory=list)
     whitelist: list[int] = field(default_factory=list)
     blacklist: list[int] = field(default_factory=list)
-    polyfill_enabled: bool = True
-    polyfill_code: int = 3
 
     @classmethod
     def from_dict(cls, data: dict) -> "CombinationsConfig":
-        polyfill = data.get("polyfill", {})
         return cls(
             recommended=data.get("recommended", []),
             whitelist=data.get("whitelist", []),
             blacklist=data.get("blacklist", []),
-            polyfill_enabled=polyfill.get("enabled", True),
-            polyfill_code=polyfill.get("code", 3),
         )
 
 

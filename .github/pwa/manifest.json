@@ -17,16 +17,16 @@
   "lang": "zh",
   "name": "Degrees of Lewdity Simplified Chinese",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "./",
   "short_name": "DoL-chs",
-  "start_url": "/",
+  "start_url": "./",
   "theme_color": "#230034",
 
   "screenshots": [],
   "shortcuts": [
     {
       "name": "Main",
-      "url": "/",
+      "url": "./dol.html",
       "description": "Main page"
     }
   ],

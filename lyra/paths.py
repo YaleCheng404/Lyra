@@ -53,15 +53,13 @@ class BuildPaths:
         """签名输出目录 (workspace/signed)"""
         return self.workspace_inner / self._config.signed_dir
 
-    def get_base_zip(self, polyfill: bool = False) -> Path:
+    def get_base_zip(self) -> Path:
         """获取ZIP基包路径"""
-        suffix = "-polyfill" if polyfill else ""
-        return self.base_dir / f"base{suffix}.zip"
+        return self.base_dir / "base.zip"
 
-    def get_apk_dir(self, polyfill: bool = False) -> Path:
+    def get_apk_dir(self) -> Path:
         """获取已解包APK目录路径"""
-        suffix = "-polyfill" if polyfill else ""
-        return self.prepare_dir / f"apk{suffix}"
+        return self.prepare_dir / "apk"
 
     @property
     def apktool_path(self) -> Path:
@@ -91,22 +89,17 @@ class BuildPaths:
         """获取 modloader mod 缓存文件路径。"""
         return self.temp_dir / f"{name}.mod.zip"
 
-    def get_build_work_dir(
-        self, pack_type: str, mod_code: int, polyfill: bool = False
-    ) -> Path:
+    def get_build_work_dir(self, pack_type: str, mod_code: int) -> Path:
         """获取特定构建的工作目录。"""
-        suffix = "-polyfill" if polyfill else ""
-        return self.extract_dir / pack_type / f"{mod_code}{suffix}"
+        return self.extract_dir / pack_type / str(mod_code)
 
-    def get_temp_apk(self, mod_code: int, polyfill: bool = False) -> Path:
+    def get_temp_apk(self, mod_code: int) -> Path:
         """获取临时APK文件路径"""
-        suffix = "-polyfill" if polyfill else ""
-        return self.workspace_inner / f"tmp_{mod_code}{suffix}.apk"
+        return self.workspace_inner / f"tmp_{mod_code}.apk"
 
-    def get_signed_dir(self, mod_code: int, polyfill: bool = False) -> Path:
+    def get_signed_dir(self, mod_code: int) -> Path:
         """获取签名输出目录"""
-        suffix = "-polyfill" if polyfill else ""
-        return self.signed_dir / f"{mod_code}{suffix}"
+        return self.signed_dir / str(mod_code)
 
     def ensure_dirs(self):
         """确保所有必要目录存在"""

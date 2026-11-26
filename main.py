@@ -87,7 +87,6 @@ def cmd_build(args) -> int:
         version=version,
         pack_types=pack_types,
         max_workers=args.jobs,
-        include_polyfill=True,
         verbose=args.verbose,
     )
 
@@ -124,12 +123,7 @@ def cmd_matrix(args) -> int:
     from lyra.combo import CombinationCalculator
 
     calculator = CombinationCalculator()
-    codes = calculator.get_build_codes(include_polyfill=True)
-
-    codes = sorted(
-        codes,
-        key=lambda x: (x.startswith("polyfill-"), int(x.replace("polyfill-", "0"))),
-    )
+    codes = sorted(calculator.get_build_codes(), key=int)
 
     if args.output_format == "shell":
         print("CODES=(" + " ".join(f'"{c}"' for c in codes) + ")")

@@ -1,6 +1,6 @@
 # DoL-Lyra
 
-基于[汉化仓库][github-chs]的自动化整合包构建工具，提供不同 Mod 与美化组合的 ZIP、Android APK 和 polyfill 兼容版。
+基于[汉化仓库][github-chs]的自动化整合包构建工具，提供不同 Mod 与美化组合的 ZIP 和 Android APK。
 
 本仓库是第三方整合发布渠道。升级前请导出并备份存档。
 
@@ -10,18 +10,18 @@
 
 - ZIP 解压后用现代浏览器打开游戏 HTML。
 - Android 安装 APK。应用名为 `DoL Lyra`，可与原版和汉化版共存；存档通过导出、导入转移。
-- polyfill 兼容版面向部分旧设备或浏览器。APK 无法加载 ModLoader 时，先更新系统 WebView，再尝试兼容版。
+- APK 无法加载 ModLoader 时，更新系统 WebView，或用现代浏览器打开 ZIP 版。
 - 发布文件包含完整游戏和 Mod，请勿将整合包 ZIP 作为 ModLoader 旁加载包导入。
 - 汉化、作弊、CSD、秋枫白桦框架、枯木逢春及音频、默示录：归途之书、极致动态 Dynamicest 已内置，可在 ModLoader 中启用或禁用。旁加载其他汉化或图片包可能覆盖内置内容。
 
-文件名格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-polyfill][-组合后缀]-{日期}.{zip,apk}`。提供 BESC、Hikari、UCB 和 AU-F 组合，下载页显示对应资源版本和来源。
+文件名格式为 `DoL-{游戏版本}-Lyra-{汉化版本}[-组合后缀]-{日期}.{zip,apk}`。提供 BESC、Hikari、UCB 和 AU-F 组合，下载页显示对应资源版本和来源。
 
-在线版由 **Deploy Online** workflow 部署到本仓库 `online` 分支，使用 BESC、作弊和 CSD 组合，包含普通与兼容模式。
+手动运行 **Deploy Online** 可将最新 Release 的 BESC ZIP 部署到本仓库 `online` 分支。
 
 ## 自动构建
 
 - **Trigger** 每月 28 日香港时间 04:17 检查一次上游汉化 Release，发现新版本后触发 **Build**，同步获取最新正式版 Mod。Mod 单独更新不触发发布。
-- **Build** 下载资源、构建并校验 16 个 ZIP/APK；指定发布 tag 时创建 Release 并部署下载站。必需 Mod 获取或产物校验失败时停止发布。
+- **Build** 下载资源、构建并校验 7 个 ZIP 和 7 个 APK。指定发布 tag 时创建 Release 并部署下载站。必需 Mod 获取或产物校验失败时停止发布。
 
 本地环境、签名和发布配置、构建命令与 Mod 编辑工具用法见 [BUILD.md](BUILD.md)。
 

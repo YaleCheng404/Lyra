@@ -43,6 +43,10 @@ class GamePreparer:
             ):
                 raise FileNotFoundError(f"缺少必需 Mod: {mod.name or mod.key}")
 
+        for kind in ("zip", "apk"):
+            if kind not in downloaded_files:
+                raise FileNotFoundError(f"未找到上游资源: {kind}")
+
         self.paths.prepare_dir.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(dir=self.paths.prepare_dir, prefix="images-") as directory:
             images = None
@@ -52,19 +56,13 @@ class GamePreparer:
                 if not images.exists():
                     images = next((p for p in root.glob("*/img") if p.is_dir()), None)
 
-            for key, polyfill in (("zip", False), ("polyfill_zip", True)):
-                if key in downloaded_files:
-                    self._prepare_zip(downloaded_files[key], images, extra_mods, polyfill)
-
-            for key, polyfill in (("apk", False), ("polyfill_apk", True)):
-                if key not in downloaded_files:
-                    raise FileNotFoundError(f"未找到上游资源: {key}")
-                self._prepare_apk(downloaded_files[key], images, extra_mods, polyfill)
+            self._prepare_zip(downloaded_files["zip"], images, extra_mods)
+            self._prepare_apk(downloaded_files["apk"], images, extra_mods)
 
     def _prepare_zip(
-        self, source: Path, images: Path | None, extra_mods: dict[str, Path], polyfill: bool
+        self, source: Path, images: Path | None, extra_mods: dict[str, Path]
     ) -> None:
-        output = self.paths.get_base_zip(polyfill)
+        output = self.paths.get_base_zip()
         partial = output.with_name(output.name + ".part")
         try:
             with TemporaryDirectory(dir=self.paths.prepare_dir, prefix="zip-") as directory:
@@ -82,9 +80,9 @@ class GamePreparer:
             partial.unlink(missing_ok=True)
 
     def _prepare_apk(
-        self, source: Path, images: Path | None, extra_mods: dict[str, Path], polyfill: bool
+        self, source: Path, images: Path | None, extra_mods: dict[str, Path]
     ) -> None:
-        apk_dir = self.paths.get_apk_dir(polyfill)
+        apk_dir = self.paths.get_apk_dir()
         with TemporaryDirectory(dir=self.paths.prepare_dir, prefix="apk-") as directory:
             decoded = Path(directory) / "decoded"
             logger.info("反编译 APK: %s", source)
