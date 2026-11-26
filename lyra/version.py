@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -44,15 +45,10 @@ class LyraVersion:
 class VersionInfo:
     """资源版本信息记录。"""
 
-    name: str  # 资源名称
-    version: str  # 版本号
-    source: str = ""  # 来源（如 GitHub repo）
-    filename: str = ""  # 文件名
-
-    def __str__(self) -> str:
-        if self.version and self.version != "unknown":
-            return f"{self.name}: {self.version}"
-        return f"{self.name}: (no version)"
+    name: str
+    version: str
+    source: str = ""
+    filename: str = ""
 
 
 @dataclass
@@ -69,8 +65,7 @@ class VersionRegistry:
                 return
         self.versions.append(info)
 
-    def extend(self, infos: list[VersionInfo]):
-        """批量添加版本信息"""
+    def extend(self, infos: Iterable[VersionInfo]):
         for info in infos:
             self.add(info)
 
@@ -94,14 +89,6 @@ class VersionRegistry:
 
         versions = [VersionInfo(**item) for item in data]
         return cls(versions=versions)
-
-    def print_summary(self):
-        """打印版本信息摘要"""
-        if not self.versions:
-            return
-        logger.info("=== 版本信息汇总 ===")
-        for v in self.versions:
-            logger.info(f"  {v}")
 
     def __len__(self) -> int:
         return len(self.versions)

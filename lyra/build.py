@@ -3,7 +3,7 @@
 import logging
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from scripts.modmagic import add_mods_to_html
@@ -20,22 +20,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BuildTask:
-    """构建任务。"""
-
-    pack_type: str  # zip 或 apk
-    mod_code: int  # MOD代码
-    version: LyraVersion | None = None  # 版本信息
-    paths: BuildPaths | None = None  # 路径管理器
-
-    def __post_init__(self):
-        if self.paths is None:
-            self.paths = BuildPaths()
+    pack_type: str
+    mod_code: int
+    version: LyraVersion | None = None
+    paths: BuildPaths = field(default_factory=BuildPaths)
 
 
 @dataclass
 class BuildResult:
-    """构建结果"""
-
     success: bool
     output_path: Path | None = None
     error: str | None = None
@@ -56,6 +48,8 @@ class PackageBuilder:
         self.paths = task.paths
         self.mod_code = ModCode(task.mod_code)
         self.work_dir = self.paths.get_build_work_dir(self.pack_type, task.mod_code)
+        self.tmp_apk = self.paths.get_temp_apk(task.mod_code)
+        self.signed_dir = self.paths.get_signed_dir(task.mod_code)
         self.lyra_mod_path = (
             self.paths.temp_dir / f"Lyra-{self.pack_type}-{task.mod_code}.mod.zip"
         )
@@ -108,7 +102,6 @@ class PackageBuilder:
             add_mods_to_html(self.html_path, mods)
 
     def _inject_lyra_mod(self):
-        """构建并注入 Lyra 信息 mod。"""
         registry = VersionRegistry.load(self.paths.versions_file)
 
         build_lyra_mod(
@@ -121,21 +114,14 @@ class PackageBuilder:
             self.task.version, self.task.mod_code, self.pack_type
         )
         partial = output.with_name(output.name + ".part")
-        tmp_apk = self.paths.get_temp_apk(self.task.mod_code)
-        signed_dir = self.paths.get_signed_dir(self.task.mod_code)
         logger.info("构建 %s: %s", self.pack_type.upper(), self.task.mod_code)
         try:
             safe_remove(self.work_dir)
             if self.pack_type == "zip":
-                extract_zip(
-                    self.paths.get_base_zip(), self.work_dir
-                )
+                extract_zip(self.paths.get_base_zip(), self.work_dir)
             else:
-                shutil.copytree(
-                    self.paths.get_apk_dir(), self.work_dir,
-                    dirs_exist_ok=True,
-                )
-                safe_remove(signed_dir)
+                shutil.copytree(self.paths.get_apk_dir(), self.work_dir, dirs_exist_ok=True)
+                safe_remove(self.signed_dir)
             self._apply_beautify()
             self._inject_modloader_mods()
             self._inject_lyra_mod()
@@ -155,46 +141,37 @@ class PackageBuilder:
             for path in (self.work_dir, self.lyra_mod_path, partial):
                 safe_remove(path)
             if self.pack_type == "apk":
-                safe_remove(tmp_apk)
-                safe_remove(signed_dir)
+                safe_remove(self.tmp_apk)
+                safe_remove(self.signed_dir)
 
     def _recompile(self) -> Path:
-        """重新编译APK"""
-        logger.debug("重新编译APK...")
-
-        apktool_path = self.paths.apktool_path
-        tmp_apk = self.paths.get_temp_apk(self.task.mod_code)
-
+        logger.debug("重建 APK: %s", self.work_dir)
         subprocess.run(
             [
                 "java",
                 "-jar",
-                str(apktool_path),
+                str(self.paths.apktool_path),
                 "b",
                 str(self.work_dir),
                 "-o",
-                str(tmp_apk),
+                str(self.tmp_apk),
             ],
             check=True,
             text=True,
         )
 
-        return tmp_apk
+        return self.tmp_apk
 
     def _sign(self, apk_path: Path) -> Path:
-        """签名APK"""
-        logger.debug("签名APK...")
-
-        apksign_path = self.paths.apksign_path
-        signed_dir = self.paths.get_signed_dir(self.task.mod_code)
-        signed_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug("签名 APK: %s", apk_path)
+        self.signed_dir.mkdir(parents=True, exist_ok=True)
 
         subprocess.run(
             [
                 "java",
                 "--enable-native-access=ALL-UNNAMED",
                 "-jar",
-                str(apksign_path),
+                str(self.paths.apksign_path),
                 "-a",
                 str(apk_path),
                 "--ks",
@@ -206,13 +183,13 @@ class PackageBuilder:
                 "--ksPass",
                 self.KEYSTORE_PASSWORD,
                 "-o",
-                str(signed_dir),
+                str(self.signed_dir),
             ],
             check=True,
             text=True,
         )
 
-        for f in signed_dir.iterdir():
+        for f in self.signed_dir.iterdir():
             if f.suffix == ".apk":
                 return f
 

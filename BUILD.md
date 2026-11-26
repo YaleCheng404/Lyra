@@ -2,7 +2,7 @@
 
 ## 环境
 
-CI 使用 Python 3.15.2、Temurin Java 25.0.5+8 和 Hugo 0.169.0。Java 用于 APK 解包、重建与签名，Hugo 用于生成下载站。完整构建建议使用 Linux 或 WSL，避免 Windows 文件名大小写冲突。Windows 可从 [Temurin 发布页](https://github.com/adoptium/temurin25-binaries/releases/tag/jdk-25.0.5%2B8) 获取相同版本。
+CI 使用 Python 3.15.2、Temurin Java 25.0.5.1+2 和 Hugo 0.170.1。Git 用于获取美化资源，Java 用于处理 APK，Hugo 用于生成下载站。完整构建建议使用 Linux 或 WSL，避免 Windows 文件名大小写冲突。Windows 可从 [Temurin 发布页](https://github.com/adoptium/temurin25-binaries/releases/tag/jdk-25.0.5.1%2B2) 获取相同版本。
 
 ```sh
 uv venv --python 3.15.2 .venv
@@ -18,7 +18,7 @@ APK 构建需要仓库根目录中的 `dol.jks`，alias 为 `dol`，当前签名
 
 ## 构建
 
-在仓库根目录执行以下四阶段流程。`--tag` 指定整合包版本，省略时准备阶段使用最新上游 Release，构建产物版本字段为 `unknown`。
+在仓库根目录执行构建命令。`--tag` 指定整合包版本，省略时使用最新上游 Release，构建产物版本字段为 `unknown`。
 
 ```sh
 python main.py prepare --tag v0.5.12.13-1.0.1a-1023
@@ -73,7 +73,7 @@ python scripts/modmagic.py remove game.html 0 2
 
 ## 依赖与检查
 
-运行环境以 `.python-version` 为准。运行和开发依赖分别由 `requirements.in` 和 `requirements-dev.in` 声明，开发环境引用运行锁文件。使用 uv 0.13.7 或更新正式版，先解析运行依赖，再解析开发依赖。
+运行和开发依赖分别由 `requirements.in` 和 `requirements-dev.in` 声明，开发环境引用运行锁文件。使用 uv 0.13.10 或更新正式版，按顺序生成两份锁文件。
 
 ```sh
 uv pip compile requirements.in --universal --python-version 3.15.2 --upgrade --output-file requirements.txt
@@ -98,7 +98,7 @@ hugo --source hub --destination public --baseURL https://example.github.io/Lyra/
 - 基包或美化资源缺失时，依次运行 `prepare`、`warmup`，再运行 `build`。
 - 工具摘要校验失败时，核对官方资源及配置中的摘要；不要绕过校验。
 - APK 重建失败时检查 Java、Apktool 输出和 AndroidManifest 替换规则；签名失败时检查 `dol.jks` 与 alias。签名工具无法定位 zipalign 时，检查 PATH 目录是否可列举，并把可用的 zipalign 目录放到 PATH 前部；手工调用也可使用上游的 `--zipAlignPath` 参数。
-- 默认 DoL+ 图片资源使用 Git 浅克隆，预热只检出配置所需的图片包目录。请确认 `git` 可用。自定义归档遇到 HTTP 429 时，会按服务端的 `Retry-After` 等待，最多重试 10 次。
+- DoL+ 预热通过 Git 检出所需的图片包。自定义归档遇到 HTTP 429 时，按服务端的 `Retry-After` 等待，最多重试 10 次。
 - 基础 Mod 每次准备时查询最新正式 Release，同一仓库共用一次查询结果。缓存通过附件 SHA-256 或完整来源身份校验，同名附件被替换后重新下载。
 - 本地虚拟环境解释器路径失效时，重新创建环境并安装锁文件。
 
@@ -108,4 +108,6 @@ hugo --source hub --destination public --baseURL https://example.github.io/Lyra/
 
 所有组合包含秋枫白桦框架、枯木逢春本体与音频、默示录：归途之书及极致动态 Dynamicest。按配置顺序原样内嵌 `.mod.zip` 和 `.modpack`；asset_pattern 使用 glob 且必须唯一匹配，required = true 的资源获取失败会终止准备。
 
-完成构建后运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023`，校验完整产物集合、压缩包 CRC、HTML 内必需 Mod 的字节和顺序，并生成 `output/release-notes.md`。CI 在上传附件前还会使用 Android SDK Build Tools 35.0.0 的 `apksigner verify --verbose --print-certs` 验证每一个 APK 的签名完整性；任何 APK 验证失败或未生成 APK，均会阻止后续附件上传与发布。本地排查可运行 `apksigner verify --verbose --print-certs output/文件名.apk`。手动发布使用 Build 的 `release_tag` 输入。首次配置下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。
+运行 `python main.py verify --tag v0.5.12.13-1.0.1a-1023` 检查产物集合、CRC 及必需 Mod 的字节和顺序，并生成 `output/release-notes.md`。CI 使用 Android SDK Build Tools 37.0.0 的 `apksigner verify --verbose --print-certs` 验证所有 APK，校验通过后上传附件。
+
+手动发布使用 Build 的 `release_tag` 输入。首次配置下载站时，在仓库 **Settings → Pages** 中选择 **GitHub Actions**。

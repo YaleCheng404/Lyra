@@ -1,5 +1,5 @@
 # Direct runtime dependencies. Regenerate requirements.txt with the command in its header.
 requests>=2.34.2
 tqdm>=4.70.1
-packaging>=26.3
+packaging>=26.4
 urllib3>=2.8.0

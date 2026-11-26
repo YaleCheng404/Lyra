@@ -44,17 +44,10 @@ class ResourceWarmer:
 
     def warmup_all(self) -> VersionRegistry:
         """预热所有美化资源。"""
-        logger.info("========== 开始资源预热 ==========")
-
         self.paths.temp_dir.mkdir(parents=True, exist_ok=True)
 
         self._warmup_dolp_packs()
-
         self._warmup_modloader_mods()
-
-        logger.info("========== 资源预热完成 ==========")
-        self.registry.print_summary()
-
         return self.registry
 
     def _warmup_dolp_packs(self):

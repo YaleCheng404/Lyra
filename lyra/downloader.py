@@ -26,7 +26,6 @@ class Downloader:
         self, version: LyraVersion | None = None
     ) -> dict[str, Path]:
         """从汉化仓库下载资源文件。"""
-        logger.info("========== 从汉化仓库下载资源 ==========")
 
         build_config = load_build_config()
         chs_repo = build_config.chs_repo_url
@@ -98,7 +97,6 @@ class Downloader:
 
     def download_extra_mods(self) -> dict[str, Path]:
         """下载额外的mod文件。"""
-        logger.info("========== 下载额外mod ==========")
 
         build_config = load_build_config()
         downloaded_mods = {}

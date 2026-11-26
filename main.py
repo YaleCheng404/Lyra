@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def cmd_prepare(args) -> int:
-    """准备游戏资源命令。"""
     from lyra.downloader import Downloader
     from lyra.prepare import GamePreparer
 
@@ -48,7 +47,6 @@ def cmd_prepare(args) -> int:
 
 
 def cmd_warmup(args) -> int:
-    """预热美化资源命令。"""
     from lyra.warmup import ResourceWarmer
 
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
@@ -56,19 +54,16 @@ def cmd_warmup(args) -> int:
     paths = BuildPaths(workspace=Path(args.workspace))
     paths.ensure_dirs()
 
-    warmer = ResourceWarmer(paths)
-    registry = warmer.warmup_all()
-
-    existing_registry = VersionRegistry.load(paths.versions_file)
-    existing_registry.extend(list(registry))
-    existing_registry.save(paths.versions_file)
+    resource_versions = ResourceWarmer(paths).warmup_all()
+    registry = VersionRegistry.load(paths.versions_file)
+    registry.extend(resource_versions)
+    registry.save(paths.versions_file)
 
     logger.info("预热完成！")
     return 0
 
 
 def cmd_build(args) -> int:
-    """构建命令。"""
     from lyra.parallel import build_all_parallel
 
     logger.info(f"DoL-Lyra 构建系统 v{__version__}")
@@ -94,7 +89,6 @@ def cmd_build(args) -> int:
 
 
 def cmd_page(args) -> int:
-    """生成下载页面命令。"""
     from lyra.gen_page import generate_download_page
 
     version = args.version or args.tag
@@ -119,7 +113,6 @@ def cmd_page(args) -> int:
 
 
 def cmd_matrix(args) -> int:
-    """生成构建矩阵命令（用于 GitHub Actions）。"""
     from lyra.combo import CombinationCalculator
 
     calculator = CombinationCalculator()
@@ -134,7 +127,6 @@ def cmd_matrix(args) -> int:
 
 
 def cmd_list(args) -> int:
-    """列出所有 MOD 组合。"""
     from lyra.combo import CombinationCalculator
 
     calculator = CombinationCalculator()
@@ -143,7 +135,6 @@ def cmd_list(args) -> int:
 
 
 def cmd_verify(args) -> int:
-    """校验全部构建产物。"""
     from lyra.verify import verify_packages
 
     version = LyraVersion.from_tag(args.tag) if args.tag else None
@@ -152,7 +143,6 @@ def cmd_verify(args) -> int:
 
 
 def cmd_check(args) -> int:
-    """检查是否需要更新。"""
     from lyra.config_loader import load_build_config
     from lyra.updater import check_chs_update
 
@@ -196,8 +186,7 @@ def cmd_check(args) -> int:
     return 0
 
 
-def main():
-    """主入口"""
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="DoL-Lyra 构建系统",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -208,25 +197,28 @@ def main():
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="可用命令")
+    subparsers = parser.add_subparsers(help="可用命令")
 
     prep_parser = subparsers.add_parser(
         "prepare",
         help="下载并预处理游戏资源",
         description="下载游戏文件、额外 mod，生成 ZIP 基包和 APK 解包目录。",
     )
+    prep_parser.set_defaults(handler=cmd_prepare)
 
     warmup_parser = subparsers.add_parser(
         "warmup",
         help="预热美化资源",
         description="下载并解压所有美化资源，避免并行构建时的冲突。",
     )
+    warmup_parser.set_defaults(handler=cmd_warmup)
 
     build_parser = subparsers.add_parser(
         "build",
         help="并行构建所有组合",
         description="使用进程池并行构建所有 MOD 组合。",
     )
+    build_parser.set_defaults(handler=cmd_build)
     build_parser.add_argument(
         "pack_type",
         nargs="?",
@@ -241,6 +233,7 @@ def main():
     )
 
     verify_parser = subparsers.add_parser("verify", help="校验完整产物集合与必需 Mod")
+    verify_parser.set_defaults(handler=cmd_verify)
     for command_parser in (prep_parser, build_parser, verify_parser):
         command_parser.add_argument("--tag", help="版本 tag（格式: v游戏版本-汉化版本-MMDD）")
 
@@ -248,6 +241,7 @@ def main():
         "page",
         help="生成下载页面",
     )
+    page_parser.set_defaults(handler=cmd_page)
     page_parser.add_argument("--version", dest="version", help="版本号")
     page_parser.add_argument("--tag", help="版本 tag（替代 --version）")
     page_parser.add_argument("--output", help="输出文件路径")
@@ -259,6 +253,7 @@ def main():
         "matrix",
         help="生成构建矩阵",
     )
+    matrix_parser.set_defaults(handler=cmd_matrix)
     matrix_parser.add_argument(
         "--output-format",
         choices=["json", "shell"],
@@ -266,15 +261,13 @@ def main():
         help="输出格式",
     )
 
-    subparsers.add_parser(
-        "list",
-        help="列出所有 MOD 组合",
-    )
+    subparsers.add_parser("list", help="列出所有 MOD 组合").set_defaults(handler=cmd_list)
 
     check_parser = subparsers.add_parser(
         "check",
         help="检查是否需要更新",
     )
+    check_parser.set_defaults(handler=cmd_check)
     check_parser.add_argument("--github-output", help="GitHub Actions 输出文件")
     check_parser.add_argument(
         "--source-repo",
@@ -304,23 +297,12 @@ def main():
     args = parser.parse_args()
     setup_logging(getattr(args, "verbose", False))
 
-    if not args.command:
+    if not hasattr(args, "handler"):
         parser.print_help()
         return 1
 
-    commands = {
-        "prepare": cmd_prepare,
-        "warmup": cmd_warmup,
-        "build": cmd_build,
-        "page": cmd_page,
-        "matrix": cmd_matrix,
-        "list": cmd_list,
-        "check": cmd_check,
-        "verify": cmd_verify,
-    }
-
     try:
-        return commands[args.command](args)
+        return args.handler(args)
     except KeyboardInterrupt:
         logger.info("用户中断")
         return 130

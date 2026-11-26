@@ -13,16 +13,10 @@ class ModCode(IntFlag):
     AU_FEMALE = 1024  # AU女性
 
     def get_suffix(self) -> str:
-        """获取基于MOD代码的文件名后缀"""
-        suffix_parts = []
-
-        if self & ModCode.BESC:
-            suffix_parts.append("besc")
-        if self & ModCode.SIDEVIEW_HIKARI:
-            suffix_parts.append("hikari")
-        if self & ModCode.AU_FEMALE:
-            suffix_parts.append("au-f")
-        if self & ModCode.UCB:
-            suffix_parts.append("ucb")
-
-        return "-".join(suffix_parts) if suffix_parts else ""
+        suffixes = (
+            (ModCode.BESC, "besc"),
+            (ModCode.SIDEVIEW_HIKARI, "hikari"),
+            (ModCode.AU_FEMALE, "au-f"),
+            (ModCode.UCB, "ucb"),
+        )
+        return "-".join(name for flag, name in suffixes if self & flag)

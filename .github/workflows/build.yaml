@@ -30,7 +30,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      BUILD_WORKSPACE: ${{ github.workspace }}
+      ANDROID_BUILD_TOOLS: "37.0.0"
     outputs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
       is_release: ${{ steps.meta.outputs.is_release }}
@@ -76,21 +76,16 @@ jobs:
           python -m unittest discover -v
           python -m compileall -q main.py lyra scripts
 
-      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: "temurin"
-          java-version: "25.0.5+8"
+          java-version: "25.0.5.1+2"
 
       - name: Prepare game packages
         shell: bash
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
-        run: |
-          TAG_ARGS=()
-          if [[ -n "$RELEASE_TAG" ]]; then
-            TAG_ARGS=(--tag "$RELEASE_TAG")
-          fi
-          python main.py prepare --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" -v
+        run: python main.py prepare --tag "$RELEASE_TAG" -v
 
       - name: Setup APK signing key
         shell: bash
@@ -116,47 +111,34 @@ jobs:
           fi
 
       - name: Warmup beautify resources
-        run: python main.py warmup --workspace "$BUILD_WORKSPACE" -v
+        run: python main.py warmup -v
 
       - name: Build all combinations
         shell: bash
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
-        run: |
-          TAG_ARGS=()
-          if [[ -n "$RELEASE_TAG" ]]; then
-            TAG_ARGS=(--tag "$RELEASE_TAG")
-          fi
-          python main.py build --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" --jobs 4 -v
-
-      - name: List outputs
-        run: ls -lah "$BUILD_WORKSPACE/output/" || echo "No output files generated"
+        run: python main.py build --tag "$RELEASE_TAG" --jobs 4 -v
 
       - name: Verify all packages
         shell: bash
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
-        run: |
-          TAG_ARGS=()
-          if [[ -n "$RELEASE_TAG" ]]; then
-            TAG_ARGS=(--tag "$RELEASE_TAG")
-          fi
-          python main.py verify --workspace "$BUILD_WORKSPACE" "${TAG_ARGS[@]}" -v
+        run: python main.py verify --tag "$RELEASE_TAG" -v
 
       - name: Set up Android APK verification tools
-        uses: android-actions/setup-android@138b5fb1cf087fdb4c5f3c621466fe304d0cf2e3 # v4.0.3
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "build-tools;35.0.0"
+          packages: "build-tools;${{ env.ANDROID_BUILD_TOOLS }}"
 
       - name: Verify APK signatures
         shell: bash
         run: |
           set -euo pipefail
-          APKSIGNER="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK not configured}}/build-tools/35.0.0/apksigner"
+          APKSIGNER="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK not configured}}/build-tools/$ANDROID_BUILD_TOOLS/apksigner"
           test -x "$APKSIGNER" || { echo "apksigner unavailable: $APKSIGNER" >&2; exit 1; }
 
           shopt -s nullglob
-          apks=("$BUILD_WORKSPACE"/output/*.apk)
+          apks=(output/*.apk)
           (( ${#apks[@]} > 0 )) || { echo "No APKs to verify" >&2; exit 1; }
 
           for apk in "${apks[@]}"; do
@@ -180,7 +162,7 @@ jobs:
       - name: Verify browser runtime
         run: |
           shopt -s nullglob
-          archives=("$BUILD_WORKSPACE"/output/*-besc-[0-9][0-9][0-9][0-9].zip)
+          archives=(output/*-besc-[0-9][0-9][0-9][0-9].zip)
           (( ${#archives[@]} == 1 )) || { echo "Expected one BESC ZIP" >&2; exit 1; }
           python scripts/browser_smoke.py "${archives[0]}"
 
@@ -196,18 +178,13 @@ jobs:
         if: steps.meta.outputs.is_release == 'true'
         shell: bash
         env:
-          VERSION: ${{ steps.meta.outputs.release_tag }}
-          REPOSITORY_OWNER: ${{ github.repository_owner }}
-          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
         run: |
           python main.py page \
-            --version "$VERSION" \
-            --github-owner "$REPOSITORY_OWNER" \
-            --github-repo "$REPOSITORY_NAME" \
-            --versions-file "$BUILD_WORKSPACE/base/versions.json" \
-            --output "output/$VERSION.md" \
+            --tag "$RELEASE_TAG" \
+            --versions-file base/versions.json \
+            --output "output/$RELEASE_TAG.md" \
             -v
-          cat "output/$VERSION.md"
 
       - name: Upload ZIP artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -302,10 +279,9 @@ jobs:
           path: hub/content/posts/downloads/
 
       - name: Set up Hugo
-        uses: peaceiris/actions-hugo@2752ce1d29631191ea3f27c23495fa06139a5b78 # v3.2.1
+        uses: peaceiris/actions-hugo@d1c81a15d4e6dca7086a17b9c2565cb70fd576bf # v3.3.0
         with:
-          hugo-version: "0.169.0"
-          extended: true
+          hugo-version: "0.170.1"
 
       - name: Configure Pages
         id: pages
